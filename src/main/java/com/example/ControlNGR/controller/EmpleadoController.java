@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.*;
 import com.example.ControlNGR.dto.EmpleadoRequestDTO;
 import com.example.ControlNGR.entity.Empleado;
 import com.example.ControlNGR.entity.Usuario;
+import com.example.ControlNGR.repository.DepartamentoRepository;
+import com.example.ControlNGR.repository.TipoUsuarioRepository;
 import com.example.ControlNGR.security.Roles;
 import com.example.ControlNGR.security.UsuarioActual;
 import com.example.ControlNGR.service.EmpleadoService;
@@ -25,10 +27,34 @@ public class EmpleadoController {
 
     private final EmpleadoService empleadoService;
     private final UsuarioActual usuarioActual;
+    private final DepartamentoRepository departamentoRepository;
+    private final TipoUsuarioRepository tipoUsuarioRepository;
 
-    public EmpleadoController(EmpleadoService empleadoService, UsuarioActual usuarioActual) {
+    public EmpleadoController(EmpleadoService empleadoService, UsuarioActual usuarioActual,
+                              DepartamentoRepository departamentoRepository,
+                              TipoUsuarioRepository tipoUsuarioRepository) {
         this.empleadoService = empleadoService;
         this.usuarioActual = usuarioActual;
+        this.departamentoRepository = departamentoRepository;
+        this.tipoUsuarioRepository = tipoUsuarioRepository;
+    }
+
+    /** Departamentos activos (para formularios y filtros). */
+    @GetMapping("/departamentos")
+    public ResponseEntity<?> departamentos() {
+        return ResponseEntity.ok(departamentoRepository.findAllByOrderByNombreAsc().stream()
+                .filter(d -> Boolean.TRUE.equals(d.getActivo()))
+                .map(d -> Map.of("id", d.getId(), "nombre", d.getNombre()))
+                .toList());
+    }
+
+    /** Roles asignables a empleados (sin el rol admin del sistema). */
+    @GetMapping("/roles")
+    public ResponseEntity<?> roles() {
+        return ResponseEntity.ok(tipoUsuarioRepository.findAllByOrderByNivelJerarquiaDesc().stream()
+                .filter(t -> !Boolean.TRUE.equals(t.getEsSistema()) && Boolean.TRUE.equals(t.getActivo()))
+                .map(t -> Map.of("codigo", t.getCodigo(), "nombre", t.getNombre(), "nivel", t.getNivelJerarquia()))
+                .toList());
     }
 
     /** Obtiene todos los empleados. */
@@ -56,6 +82,11 @@ public class EmpleadoController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "Solo el administrador o gerencia pueden registrar empleados"));
         }
+        String rolNuevo = datos.getRol() == null || datos.getRol().isBlank() ? Roles.TECNICO : datos.getRol().trim();
+        if (!Roles.puedeAsignarRol(editor.getRol(), rolNuevo)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "No puede registrar empleados con el rol " + rolNuevo));
+        }
         try {
             return ResponseEntity.status(HttpStatus.CREATED).body(empleadoService.crearEmpleado(datos));
         } catch (RuntimeException e) {
@@ -75,8 +106,17 @@ public class EmpleadoController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", "No tiene permisos para editar este empleado"));
         }
+        boolean propio = esMismoPerfil(editor, objetivoOpt.get());
+        String rolNuevo = datos.getRol() == null ? "" : datos.getRol().trim();
+        if (!propio && !rolNuevo.isEmpty() && !rolNuevo.equalsIgnoreCase(objetivoOpt.get().getRol())
+                && !Roles.puedeAsignarRol(editor.getRol(), rolNuevo)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(Map.of("error", "No puede asignar el rol " + rolNuevo));
+        }
         try {
-            return ResponseEntity.ok(empleadoService.actualizarEmpleado(id, datos, puedeGestionarAcceso(editor)));
+            // En su propio registro solo se cambian datos personales (no rol, estado, ingreso ni cargo)
+            return ResponseEntity.ok(empleadoService.actualizarEmpleado(id, datos,
+                    !propio && puedeGestionarAcceso(editor), propio));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
@@ -176,9 +216,11 @@ public class EmpleadoController {
     @PostMapping("/cambiar-password-admin/{id}")
     public ResponseEntity<?> cambiarPasswordAdmin(@PathVariable("id") Integer id, @RequestBody Map<String, String> request) {
         Usuario editor = usuarioActual.requerido();
-        if (!puedeGestionarAcceso(editor)) {
+        Optional<Empleado> objetivo = empleadoService.findById(id);
+        if (!puedeGestionarAcceso(editor) || objetivo.isEmpty()
+                || !puedeModificarEstado(editor, objetivo.get())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "No tiene permisos para restablecer contraseñas", "success", false));
+                    .body(Map.of("error", "No tiene permisos para restablecer esta contraseña", "success", false));
         }
         try {
             boolean cambiado = empleadoService.cambiarPasswordAdmin(id, request.get("passwordNueva"));

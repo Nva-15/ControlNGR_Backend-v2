@@ -261,10 +261,22 @@ public class EmpleadoService {
     /**
      * Actualiza un empleado existente.
      * @param puedeGestionarAcceso true si el editor puede cambiar rol/contraseña/usuario (admin o gerencia)
+     * @param soloDatosPersonales true cuando el empleado edita su propio registro
      */
-    public Empleado actualizarEmpleado(Integer id, EmpleadoRequestDTO datos, boolean puedeGestionarAcceso) {
+    public Empleado actualizarEmpleado(Integer id, EmpleadoRequestDTO datos, boolean puedeGestionarAcceso,
+                                       boolean soloDatosPersonales) {
         Empleado empleado = empleadoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado"));
+        if (soloDatosPersonales) {
+            // Rol, estado, cargo, departamento y fecha de ingreso (que define las vacaciones) los cambia su jefatura
+            datos.setCargo(null);
+            datos.setNivel(null);
+            datos.setDepartamentoId(null);
+            datos.setIngreso(null);
+            datos.setActivo(null);
+            datos.setUsuarioActivo(null);
+            puedeGestionarAcceso = false;
+        }
 
         if (datos.getNombre() != null && !datos.getNombre().trim().isEmpty()) {
             empleado.setNombre(datos.getNombre().trim());

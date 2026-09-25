@@ -20,6 +20,9 @@ import java.util.Map;
 @RequestMapping("/api/horarios-semanales")
 public class HorarioSemanalController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.example.ControlNGR.security.UsuarioActual usuarioActual;
+
     private static final Logger logger = LoggerFactory.getLogger(HorarioSemanalController.class);
 
     @Autowired
@@ -63,10 +66,9 @@ public class HorarioSemanalController {
                 logger.warn("Fecha de fin es null");
                 return ResponseEntity.badRequest().body(Map.of("error", "La fecha de fin es requerida"));
             }
-            if (request.getCreadoPorId() == null || request.getCreadoPorId() <= 0) {
-                logger.warn("CreadoPorId inválido: {}", request.getCreadoPorId());
-                return ResponseEntity.badRequest().body(Map.of("error", "El ID del creador es requerido y debe ser válido"));
-            }
+            // El creador es el usuario autenticado (null si es el administrador del sistema)
+            com.example.ControlNGR.entity.Empleado creador = usuarioActual.requerido().getEmpleado();
+            request.setCreadoPorId(creador != null ? creador.getId() : null);
 
             HorarioSemanalResponseDTO response = horarioSemanalService.generarSemana(request);
             logger.info("Semana generada exitosamente con ID: {}", response.getId());

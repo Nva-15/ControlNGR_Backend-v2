@@ -143,6 +143,12 @@ public class SolicitudController {
         return ResponseEntity.ok(solicitudService.obtenerPendientes());
     }
 
+    /** Roles cuyas solicitudes aprueba el usuario autenticado (vacio si no aprueba). */
+    @GetMapping("/roles-a-cargo")
+    public ResponseEntity<List<String>> getRolesACargo() {
+        return ResponseEntity.ok(solicitudService.rolesACargo());
+    }
+
     /** Solo las pendientes que el usuario autenticado puede aprobar segun su rol. */
     @GetMapping("/pendientes-por-aprobar")
     public ResponseEntity<List<SolicitudResponseDTO>> getPendientesPorAprobar() {

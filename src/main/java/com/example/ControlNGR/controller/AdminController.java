@@ -27,16 +27,18 @@ public class AdminController {
     private final FeriadoLaboradoService feriadoLaboradoService;
     private final VacacionesService vacacionesService;
     private final UsuarioActual usuarioActual;
+    private final RedService redService;
 
     public AdminController(AdminService adminService, ParametroService parametroService, SaldoService saldoService,
                            FeriadoLaboradoService feriadoLaboradoService, VacacionesService vacacionesService,
-                           UsuarioActual usuarioActual) {
+                           UsuarioActual usuarioActual, RedService redService) {
         this.adminService = adminService;
         this.parametroService = parametroService;
         this.saldoService = saldoService;
         this.feriadoLaboradoService = feriadoLaboradoService;
         this.vacacionesService = vacacionesService;
         this.usuarioActual = usuarioActual;
+        this.redService = redService;
     }
 
     // ---------- Parametros ----------
@@ -48,6 +50,13 @@ public class AdminController {
     @PutMapping("/parametros/{clave}")
     public ResponseEntity<?> actualizarParametro(@PathVariable("clave") String clave, @RequestBody Map<String, String> body) {
         return ResponseEntity.ok(parametroService.actualizar(clave, body.get("valor")));
+    }
+
+    /** IP con la que el servidor ve al equipo del administrador (para configurar segmentos). */
+    @GetMapping("/mi-ip")
+    public ResponseEntity<?> miIp(jakarta.servlet.http.HttpServletRequest request) {
+        String ip = redService.ipCliente(request);
+        return ResponseEntity.ok(Map.of("ip", String.valueOf(ip), "dentroDeRed", redService.ipPermitida(ip)));
     }
 
     // ---------- Segmentos de red ----------

@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.*;
 import com.example.ControlNGR.dto.EmpleadoRequestDTO;
 import com.example.ControlNGR.entity.Empleado;
 import com.example.ControlNGR.entity.Usuario;
+import com.example.ControlNGR.repository.DepartamentoRepository;
+import com.example.ControlNGR.repository.TipoUsuarioRepository;
 import com.example.ControlNGR.security.Roles;
 import com.example.ControlNGR.security.UsuarioActual;
 import com.example.ControlNGR.service.EmpleadoService;
@@ -25,10 +27,34 @@ public class EmpleadoController {
 
     private final EmpleadoService empleadoService;
     private final UsuarioActual usuarioActual;
+    private final DepartamentoRepository departamentoRepository;
+    private final TipoUsuarioRepository tipoUsuarioRepository;
 
-    public EmpleadoController(EmpleadoService empleadoService, UsuarioActual usuarioActual) {
+    public EmpleadoController(EmpleadoService empleadoService, UsuarioActual usuarioActual,
+                              DepartamentoRepository departamentoRepository,
+                              TipoUsuarioRepository tipoUsuarioRepository) {
         this.empleadoService = empleadoService;
         this.usuarioActual = usuarioActual;
+        this.departamentoRepository = departamentoRepository;
+        this.tipoUsuarioRepository = tipoUsuarioRepository;
+    }
+
+    /** Departamentos activos (para formularios y filtros). */
+    @GetMapping("/departamentos")
+    public ResponseEntity<?> departamentos() {
+        return ResponseEntity.ok(departamentoRepository.findAllByOrderByNombreAsc().stream()
+                .filter(d -> Boolean.TRUE.equals(d.getActivo()))
+                .map(d -> Map.of("id", d.getId(), "nombre", d.getNombre()))
+                .toList());
+    }
+
+    /** Roles asignables a empleados (sin el rol admin del sistema). */
+    @GetMapping("/roles")
+    public ResponseEntity<?> roles() {
+        return ResponseEntity.ok(tipoUsuarioRepository.findAllByOrderByNivelJerarquiaDesc().stream()
+                .filter(t -> !Boolean.TRUE.equals(t.getEsSistema()) && Boolean.TRUE.equals(t.getActivo()))
+                .map(t -> Map.of("codigo", t.getCodigo(), "nombre", t.getNombre(), "nivel", t.getNivelJerarquia()))
+                .toList());
     }
 
     /** Obtiene todos los empleados. */

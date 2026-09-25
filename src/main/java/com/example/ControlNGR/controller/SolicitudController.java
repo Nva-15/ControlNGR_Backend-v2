@@ -12,6 +12,7 @@ import com.example.ControlNGR.dto.SolicitudRequestDTO;
 import com.example.ControlNGR.dto.SolicitudResponseDTO;
 import com.example.ControlNGR.entity.Solicitud;
 import com.example.ControlNGR.entity.SolicitudEvidencia;
+import com.example.ControlNGR.security.UsuarioActual;
 import com.example.ControlNGR.service.SolicitudService;
 
 import java.nio.charset.StandardCharsets;
@@ -28,9 +29,11 @@ public class SolicitudController {
     private static final DateTimeFormatter ISO = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     private final SolicitudService solicitudService;
+    private final UsuarioActual usuarioActual;
 
-    public SolicitudController(SolicitudService solicitudService) {
+    public SolicitudController(SolicitudService solicitudService, UsuarioActual usuarioActual) {
         this.solicitudService = solicitudService;
+        this.usuarioActual = usuarioActual;
     }
 
     /** Crear solicitud sin archivo (vacaciones, compensacion). */
@@ -70,6 +73,7 @@ public class SolicitudController {
         if (empleadoId == null || fechaInicioStr == null || fechaFinStr == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "Datos incompletos", "success", false));
         }
+        usuarioActual.validarAccesoAEmpleado(empleadoId);
         List<Solicitud> conflictos = solicitudService.verificarConflictosFecha(
                 empleadoId, LocalDate.parse(fechaInicioStr), LocalDate.parse(fechaFinStr));
 
@@ -135,6 +139,7 @@ public class SolicitudController {
 
     @GetMapping("/mis-solicitudes/{empleadoId}")
     public ResponseEntity<List<SolicitudResponseDTO>> getMisSolicitudes(@PathVariable("empleadoId") Integer empleadoId) {
+        usuarioActual.validarAccesoAEmpleado(empleadoId);
         return ResponseEntity.ok(solicitudService.obtenerMisSolicitudes(empleadoId));
     }
 

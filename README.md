@@ -50,10 +50,40 @@ La marcación solo se permite desde los segmentos registrados, así que el backe
 
 Para comprobarlo, entre al panel admin → **Segmentos de red** desde otro equipo de la oficina: la pantalla muestra con qué IP lo ve el servidor. Si aparece una IP interna de Docker, se recomienda instalar el sistema en un servidor Linux.
 
+### Pasar de XAMPP a Docker
+
+Antes el sistema usaba XAMPP (Apache + MariaDB/MySQL + phpMyAdmin). Ahora la base de datos, el backend y la web corren en Docker y **XAMPP ya no es necesario**.
+
+1. **Respaldar la base anterior (opcional, como archivo histórico):** en phpMyAdmin → base `controlngr` → *Exportar* → SQL. El sistema nuevo no importa esa base: arranca con su propia estructura y los datos iniciales (director, gerente, jefe, supervisores, feriados, etc.).
+2. **Detener XAMPP:** en el panel de XAMPP detener *Apache* y *MySQL* y desmarcarlos como servicio de Windows. Si Apache sigue activo ocupa el puerto 80 y la web no podrá iniciar (o cambie `APP_PORT` en `.env`, por ejemplo `APP_PORT=8081`). El MySQL de Docker usa el puerto `3307`, así que no choca con el de XAMPP.
+3. **Instalar Docker Desktop** (en Windows con WSL 2) y levantar el sistema:
+   ```powershell
+   cd ControlNGR_Backend-v2
+   copy .env.example .env      # completar DB_PASSWORD y JWT_SECRET
+   docker compose up -d --build
+   ```
+4. **Copiar las fotos de perfil** que antes estaban en `D:\ControlNGR\img` al volumen de Docker:
+   ```powershell
+   docker cp "D:\ControlNGR\img\." controlngr-backend:/app/data/img/
+   ```
+5. **Revisar la base con un cliente gráfico** (reemplaza a phpMyAdmin): HeidiSQL, DBeaver o MySQL Workbench, conectando a `127.0.0.1`, puerto `3307`, usuario `root` y la contraseña de `DB_PASSWORD`. Solo es accesible desde el mismo servidor.
+
+Comandos útiles:
+
+| Acción | Comando |
+|---|---|
+| Ver estado | `docker compose ps` |
+| Ver logs del backend | `docker compose logs -f backend` |
+| Detener | `docker compose stop` |
+| Iniciar de nuevo | `docker compose start` |
+| Borrar todo y empezar de cero (**elimina los datos**) | `docker compose down -v` |
+
+Los contenedores tienen `restart: unless-stopped`: al reiniciar el equipo vuelven a iniciar solos (con Docker Desktop configurado para iniciar con Windows).
+
 ### Ejecutar sin Docker (desarrollo)
 
-1. Tener MySQL 8 y crear una base vacía `controlngr`.
-2. Crear el `.env` en la raíz del proyecto (Spring lo lee automáticamente) con `DB_HOST`, `DB_PORT`, `DB_USER=root`, `DB_PASSWORD` y `JWT_SECRET`.
+1. Levantar solo la base de datos con Docker: `docker compose up -d db` (queda en `127.0.0.1:3307`). La MariaDB de XAMPP no se recomienda: el sistema está hecho y probado para MySQL 8.
+2. Crear el `.env` en la raíz del proyecto (Spring lo lee automáticamente) con `DB_HOST=127.0.0.1`, `DB_PORT=3307`, `DB_USER=root`, `DB_PASSWORD` y `JWT_SECRET`.
 3. Ejecutar `./gradlew bootRun`. El frontend se ejecuta aparte con `npm start` (puerto 4200).
 
 > El archivo `.env` **nunca** se sube a git. Las contraseñas de la base de datos, del correo y el secreto JWT solo existen en el equipo donde corre el sistema.

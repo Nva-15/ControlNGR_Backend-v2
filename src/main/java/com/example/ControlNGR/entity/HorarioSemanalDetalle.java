@@ -106,19 +106,8 @@ public class HorarioSemanalDetalle {
         this.solicitudRef = solicitud;
         this.origenTipoDia = "solicitud_aprobada";
 
-        // Determinar tipo de día según el tipo de solicitud
-        String tipoSolicitud = solicitud.getTipo().toLowerCase();
-        if (tipoSolicitud.contains("vacacion")) {
-            this.tipoDia = "vacaciones";
-        } else if (tipoSolicitud.contains("descanso")) {
-            this.tipoDia = "descanso";
-        } else if (tipoSolicitud.contains("permiso")) {
-            this.tipoDia = "permiso";
-        } else if (tipoSolicitud.contains("compens")) {
-            this.tipoDia = "compensado";
-        } else {
-            this.tipoDia = tipoSolicitud;
-        }
+        // El tipo de dia lo define el catalogo de tipos de solicitud
+        this.tipoDia = solicitud.getTipoSolicitud().getTipoDiaHorario();
 
         // Limpiar horarios cuando es día no laboral
         this.horaEntrada = null;

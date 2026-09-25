@@ -8,7 +8,11 @@ import org.springframework.web.bind.annotation.*;
 import com.example.ControlNGR.dto.AsistenciaRequestDTO;
 import com.example.ControlNGR.dto.AsistenciaResponseDTO;
 import com.example.ControlNGR.dto.ReporteAsistenciaDTO;
+import com.example.ControlNGR.security.AccesoDenegadoException;
+import com.example.ControlNGR.security.FueraDeRedException;
 import com.example.ControlNGR.service.AsistenciaService;
+import com.example.ControlNGR.service.RedService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -20,11 +24,16 @@ public class AsistenciaController {
     @Autowired
     private AsistenciaService asistenciaService;
     
+    @Autowired
+    private RedService redService;
+
     @PostMapping("/registrar")
-    public ResponseEntity<?> registrarAsistencia(@RequestBody AsistenciaRequestDTO request) {
+    public ResponseEntity<?> registrarAsistencia(@RequestBody AsistenciaRequestDTO request, HttpServletRequest http) {
         try {
-            AsistenciaResponseDTO response = asistenciaService.registrarAsistencia(request);
+            AsistenciaResponseDTO response = asistenciaService.registrarAsistencia(request, redService.ipCliente(http));
             return ResponseEntity.ok(response);
+        } catch (FueraDeRedException | AccesoDenegadoException e) {
+            throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", e.getMessage()));
@@ -34,6 +43,17 @@ public class AsistenciaController {
         }
     }
     
+    /** Indica si el equipo actual esta dentro de la red permitida (para mostrarlo antes de marcar). */
+    @GetMapping("/verificar-red")
+    public ResponseEntity<?> verificarRed(HttpServletRequest http) {
+        String ip = redService.ipCliente(http);
+        boolean permitida = redService.ipPermitida(ip);
+        return ResponseEntity.ok(Map.of(
+                "ip", String.valueOf(ip),
+                "dentroDeRed", permitida,
+                "mensaje", permitida ? "Equipo dentro de la red permitida" : "Está fuera de red"));
+    }
+
     @GetMapping
     public ResponseEntity<List<AsistenciaResponseDTO>> obtenerTodasAsistencias() {
         List<AsistenciaResponseDTO> asistencias = asistenciaService.obtenerTodasAsistencias();

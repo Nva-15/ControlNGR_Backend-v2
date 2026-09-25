@@ -24,10 +24,10 @@ public class EmailService {
     @Autowired
     private JavaMailSender mailSender;
 
-    @Value("${app.mail.enabled:true}")
+    @Value("${app.mail.enabled:false}")
     private boolean emailEnabled;
 
-    @Value("${app.mail.from:proyecto.24web@gmail.com}")
+    @Value("${app.mail.from:}")
     private String fromEmail;
 
     @Value("${app.mail.from-name:Sistema Control NGR}")

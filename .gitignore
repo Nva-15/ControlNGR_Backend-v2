@@ -40,3 +40,7 @@ out/
 src/main/resources/static/
 # Excepto el .gitkeep si existe
 !src/main/resources/static/.gitkeep
+
+### Configuracion local y datos ###
+.env
+data/

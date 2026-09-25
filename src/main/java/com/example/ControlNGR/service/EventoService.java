@@ -51,8 +51,8 @@ public class EventoService {
         Empleado creador = creadorOpt.get();
 
         // Verificar permisos
-        if (!Arrays.asList("admin", "supervisor").contains(creador.getRol().toLowerCase())) {
-            throw new RuntimeException("Solo admin/supervisor pueden crear eventos");
+        if (!com.example.ControlNGR.security.Roles.esGestion(creador.getRol())) {
+            throw new RuntimeException("Solo jefaturas y supervisores pueden crear eventos");
         }
 
         Evento evento = new Evento();
@@ -98,7 +98,7 @@ public class EventoService {
             .orElseThrow(() -> new RuntimeException("Empleado no encontrado"));
 
         // Verificar permisos
-        if (!Arrays.asList("admin", "supervisor").contains(editor.getRol().toLowerCase())) {
+        if (!com.example.ControlNGR.security.Roles.esGestion(editor.getRol())) {
             throw new RuntimeException("Sin permisos para editar eventos");
         }
 
@@ -134,7 +134,7 @@ public class EventoService {
         Empleado empleado = empleadoRepository.findById(empleadoId)
             .orElseThrow(() -> new RuntimeException("Empleado no encontrado"));
 
-        if (!Arrays.asList("admin", "supervisor").contains(empleado.getRol().toLowerCase())) {
+        if (!com.example.ControlNGR.security.Roles.esGestion(empleado.getRol())) {
             throw new RuntimeException("Sin permisos para cambiar estado");
         }
 
@@ -151,7 +151,7 @@ public class EventoService {
         Empleado empleado = empleadoRepository.findById(empleadoId)
             .orElseThrow(() -> new RuntimeException("Empleado no encontrado"));
 
-        if (!Arrays.asList("admin", "supervisor").contains(empleado.getRol().toLowerCase())) {
+        if (!com.example.ControlNGR.security.Roles.esGestion(empleado.getRol())) {
             throw new RuntimeException("Sin permisos para eliminar eventos");
         }
 

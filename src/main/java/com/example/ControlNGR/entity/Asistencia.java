@@ -30,8 +30,14 @@ public class Asistencia {
     @Column(name = "observaciones", columnDefinition = "TEXT")
     private String observaciones;
     
-    @Column(name = "salida_automatica")
+    @Column(name = "salida_automatica", nullable = false)
     private Boolean salidaAutomatica = false;
+
+    @Column(name = "ip_entrada", length = 45)
+    private String ipEntrada;
+
+    @Column(name = "ip_salida", length = 45)
+    private String ipSalida;
     
     // Constructores
     public Asistencia() {}
@@ -105,4 +111,10 @@ public class Asistencia {
 		this.salidaAutomatica = salidaAutomatica;
 	}    
     
+
+	public String getIpEntrada() { return ipEntrada; }
+	public void setIpEntrada(String ipEntrada) { this.ipEntrada = ipEntrada; }
+
+	public String getIpSalida() { return ipSalida; }
+	public void setIpSalida(String ipSalida) { this.ipSalida = ipSalida; }
 }

@@ -23,6 +23,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+	// Migraciones de base de datos: crean/actualizan las tablas al iniciar el sistema
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-mysql'
 
 	runtimeOnly 'com.mysql:mysql-connector-j'
 

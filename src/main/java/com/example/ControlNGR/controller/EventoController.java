@@ -147,7 +147,7 @@ public class EventoController {
             var empleado = empleadoService.findById(empleadoId);
 
             if (!empleado.isPresent() ||
-                !java.util.Arrays.asList("admin", "supervisor").contains(empleado.get().getRol().toLowerCase())) {
+                !com.example.ControlNGR.security.Roles.esGestion(empleado.get().getRol())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "Sin permisos para ver todos los eventos"));
             }

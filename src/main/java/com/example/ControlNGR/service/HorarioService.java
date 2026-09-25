@@ -164,8 +164,8 @@ public class HorarioService {
         Empleado empleado = empleadoRepository.findById(empleadoId)
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado con ID: " + empleadoId));
 
-        if ("admin".equalsIgnoreCase(empleado.getRol())) {
-            throw new RuntimeException("Los administradores no tienen horarios asignados");
+        if (empleado.getUsuario() != null && !Boolean.TRUE.equals(empleado.getUsuario().getTipoUsuario().getMarcaAsistencia())) {
+            throw new RuntimeException("Este rol no tiene horarios asignados");
         }
 
         List<HorarioResponseDTO> resultados = new ArrayList<>();
@@ -207,8 +207,8 @@ public class HorarioService {
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado con ID: " + request.getEmpleadoId()));
 
         // Validar que no sea admin (admin no tiene horarios)
-        if ("admin".equalsIgnoreCase(empleado.getRol())) {
-            throw new RuntimeException("Los administradores no tienen horarios asignados");
+        if (empleado.getUsuario() != null && !Boolean.TRUE.equals(empleado.getUsuario().getTipoUsuario().getMarcaAsistencia())) {
+            throw new RuntimeException("Este rol no tiene horarios asignados");
         }
 
         // Verificar que no exista un horario para el mismo dia
@@ -246,8 +246,8 @@ public class HorarioService {
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado con ID: " + empleadoId));
 
         // Validar que no sea admin (admin no tiene horarios)
-        if ("admin".equalsIgnoreCase(empleado.getRol())) {
-            throw new RuntimeException("Los administradores no tienen horarios asignados");
+        if (empleado.getUsuario() != null && !Boolean.TRUE.equals(empleado.getUsuario().getTipoUsuario().getMarcaAsistencia())) {
+            throw new RuntimeException("Este rol no tiene horarios asignados");
         }
 
         // Buscar si ya existe horario para ese dia
@@ -278,8 +278,8 @@ public class HorarioService {
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado con ID: " + empleadoId));
 
         // Validar que no sea admin (admin no tiene horarios)
-        if ("admin".equalsIgnoreCase(empleado.getRol())) {
-            throw new RuntimeException("Los administradores no tienen horarios asignados");
+        if (empleado.getUsuario() != null && !Boolean.TRUE.equals(empleado.getUsuario().getTipoUsuario().getMarcaAsistencia())) {
+            throw new RuntimeException("Este rol no tiene horarios asignados");
         }
 
         // Eliminar horarios existentes del empleado

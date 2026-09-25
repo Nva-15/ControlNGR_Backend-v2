@@ -1,0 +1,50 @@
+# Control NGR - levantar todo con:  docker compose up -d --build
+# Requiere un archivo .env (copiar desde .env.example y completar).
+services:
+  db:
+    image: mysql:8.0
+    container_name: controlngr-db
+    restart: unless-stopped
+    environment:
+      TZ: America/Lima
+      MYSQL_DATABASE: ${DB_NAME:-controlngr}
+      MYSQL_USER: ${DB_USER:-controlngr}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD en .env}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?Defina DB_ROOT_PASSWORD en .env}
+    command:
+      - --default-time-zone=-05:00
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "${DB_PUBLISHED_PORT:-3307}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: .
+    container_name: controlngr-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      STORAGE_IMG: file:/app/data/img/
+      STORAGE_EVIDENCIAS: /app/data/evidencias
+    volumes:
+      - img_data:/app/data/img
+      - evidencias_data:/app/data/evidencias
+    ports:
+      - "${APP_PORT:-8080}:8080"
+
+volumes:
+  db_data:
+  img_data:
+  evidencias_data:

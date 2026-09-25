@@ -8,6 +8,8 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.ControlNGR.service.ImageService;
 import com.example.ControlNGR.service.EmpleadoService;
 import com.example.ControlNGR.service.JWTUtil;
+import com.example.ControlNGR.security.Roles;
+import com.example.ControlNGR.security.UsuarioActual;
 import java.util.Map;
 import java.io.IOException;
 import java.util.HashMap;
@@ -27,6 +29,9 @@ public class ImageController {
     
     @Autowired
     private JWTUtil jwtUtil;
+
+    @Autowired
+    private UsuarioActual usuarioActual;
     
     @PostMapping("/upload/{empleadoId}")
     public ResponseEntity<?> uploadImage(
@@ -57,21 +62,10 @@ public class ImageController {
             com.example.ControlNGR.entity.Empleado empleado = empleadoOpt.get();
             
             // Verificar permisos: Solo admin, supervisor o el propio usuario
-            String username = jwtUtil.extractUsername(token);
-            String rol = jwtUtil.extractRol(token);
-            
-            Optional<com.example.ControlNGR.entity.Empleado> usuarioActualOpt = empleadoService.findByUsername(username);
-            if (!usuarioActualOpt.isPresent()) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("error", "Usuario no encontrado", "success", false));
-            }
-            
-            com.example.ControlNGR.entity.Empleado usuarioActual = usuarioActualOpt.get();
-            
-            boolean puedeModificar = "admin".equals(rol) || 
-                                     "supervisor".equals(rol) || 
-                                     usuarioActual.getId().equals(empleadoId);
-            
+            com.example.ControlNGR.entity.Usuario editor = usuarioActual.requerido();
+            boolean esPropio = editor.getEmpleado() != null && editor.getEmpleado().getId().equals(empleadoId);
+            boolean puedeModificar = esPropio || Roles.puedeAdministrar(editor.getRol(), empleado.getRol());
+
             if (!puedeModificar) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "No tiene permisos para modificar este perfil", "success", false));
@@ -93,7 +87,7 @@ public class ImageController {
             
             // Actualizar empleado con nueva imagen
             empleado.setFoto(nombreArchivo);
-            empleadoService.save(empleado);
+            empleadoService.guardar(empleado);
             
             return ResponseEntity.ok(Map.of(
                 "success", true,

@@ -43,7 +43,7 @@ public class Evento {
     private EstadoEvento estado = EstadoEvento.BORRADOR;
 
     @Column(name = "roles_visibles", length = 255)
-    private String rolesVisibles = "admin,supervisor,tecnico,hd,noc";
+    private String rolesVisibles = "director,gerente,jefe,supervisor,gestor,tecnico,hd,noc,bo,asistente";
 
     @Column(name = "permite_comentarios")
     private Boolean permiteComentarios = true;

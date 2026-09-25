@@ -9,8 +9,6 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -18,6 +16,8 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+
+import com.example.ControlNGR.security.Roles;
 
 @Configuration
 @EnableWebSecurity
@@ -50,6 +50,9 @@ public class WebSecurityConfig {
                     "/reportes",
                     "/eventos",
                     "/eventos/**",
+                    "/admin",
+                    "/admin/**",
+                    "/cambiar-password",
                     "/img/**",
                     "/css/**",
                     "/js/**",
@@ -83,62 +86,58 @@ public class WebSecurityConfig {
                     "/v3/api-docs/**"
                 ).permitAll()
                 
-                // Endpoints públicos de API
+                // Endpoints públicos de API (login). El resto de /api/auth valida el usuario en el controlador
                 .requestMatchers("/api/auth/**").permitAll()
-                
-             // VER empleados (Organigrama / Listado) - Todos los roles
-                .requestMatchers(HttpMethod.GET, "/api/empleados/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR", "TECNICO", "HD", "NOC")
 
-                // VER horarios (consolidado, por empleado, exportar) - Todos los roles
-                .requestMatchers(HttpMethod.GET, "/api/horarios/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR", "TECNICO", "HD", "NOC")
+                // PANEL MAESTRO - solo admin
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
-                // Test endpoint público
+                // EMPLEADOS - ver: todos; crear/editar/eliminar: jefaturas, supervisores, gestor y admin
+                // (el controlador valida sobre que empleados puede actuar cada rol)
+                .requestMatchers(HttpMethod.GET, "/api/empleados/**").hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
+                .requestMatchers(HttpMethod.PUT, "/api/empleados/actualizar-perfil/**", "/api/empleados/actualizar-email/**")
+                    .hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
+                .requestMatchers("/api/empleados/**").hasAnyRole(Roles.AUTH_GESTION_Y_ADMIN)
+
+                // HORARIOS - ver: todos; modificar: jefaturas, supervisores, gestor y admin
                 .requestMatchers("/api/horarios-semanales/test").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/horarios/**", "/api/horarios-semanales/**")
+                    .hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
+                .requestMatchers("/api/horarios/**", "/api/horarios-semanales/**").hasAnyRole(Roles.AUTH_GESTION_Y_ADMIN)
 
-                // VER horarios semanales - Todos los roles
-                .requestMatchers(HttpMethod.GET, "/api/horarios-semanales/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR", "TECNICO", "HD", "NOC")
+                // Imagenes de perfil
+                .requestMatchers("/api/imagenes/**").hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
 
-                // Subir imágenes de perfil - Todos los usuarios autenticados
-                .requestMatchers("/api/imagenes/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR", "TECNICO", "HD", "NOC")
+                // Asistencia, solicitudes, saldos y notificaciones: solo personal (el admin no marca ni solicita)
+                .requestMatchers("/api/asistencia/**", "/api/solicitudes/**", "/api/saldos/**", "/api/notificaciones/**")
+                    .hasAnyRole(Roles.AUTH_PERSONAL)
 
-                // Endpoints protegidos por Rol (CRUD empleados y horarios - POST/PUT/DELETE)
-                .requestMatchers("/api/empleados/**", "/api/horarios/**", "/api/horarios-semanales/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR")
-
-                // NOTIFICACIONES - Todos los roles
-                .requestMatchers("/api/notificaciones/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR", "TECNICO", "HD", "NOC")
-
-                .requestMatchers("/api/asistencia/**", "/api/solicitudes/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR", "TECNICO", "HD", "NOC")
-                .requestMatchers("/api/solicitudes/exportar/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR", "TECNICO", "HD", "NOC")
-
-                // EVENTOS - VER (todos los roles autenticados)
-                .requestMatchers(HttpMethod.GET, "/api/eventos/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR", "TECNICO", "HD", "NOC")
-                // EVENTOS - Responder y comentar (todos los roles)
+                // EVENTOS - ver, responder y comentar: todo el personal; crear/editar/eliminar: gestion
+                .requestMatchers(HttpMethod.GET, "/api/eventos/**").hasAnyRole(Roles.AUTH_PERSONAL)
                 .requestMatchers(HttpMethod.POST, "/api/eventos/responder", "/api/eventos/*/comentarios")
-                    .hasAnyRole("ADMIN", "SUPERVISOR", "TECNICO", "HD", "NOC")
-                // EVENTOS - Crear, editar, eliminar (solo admin/supervisor)
-                .requestMatchers(HttpMethod.POST, "/api/eventos/crear")
-                    .hasAnyRole("ADMIN", "SUPERVISOR")
-                .requestMatchers(HttpMethod.PUT, "/api/eventos/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR")
-                .requestMatchers(HttpMethod.DELETE, "/api/eventos/**")
-                    .hasAnyRole("ADMIN", "SUPERVISOR")
+                    .hasAnyRole(Roles.AUTH_PERSONAL)
+                .requestMatchers("/api/eventos/**").hasAnyRole(Roles.AUTH_GESTION)
 
                 // El resto requiere autenticación
                 .anyRequest().authenticated()
             )
+            .exceptionHandling(ex -> ex
+                // Respuestas JSON claras en lugar de redirigir a la pagina de error
+                .authenticationEntryPoint((request, response, e) ->
+                    escribirError(response, 401, "No autenticado. Inicie sesión nuevamente."))
+                .accessDeniedHandler((request, response, e) ->
+                    escribirError(response, 403, "No tiene permisos para realizar esta acción")))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
+    }
+
+    private static void escribirError(jakarta.servlet.http.HttpServletResponse response, int status, String mensaje)
+            throws java.io.IOException {
+        response.setStatus(status);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"error\":\"" + mensaje + "\",\"success\":false}");
     }
 
     @Bean
@@ -168,10 +167,5 @@ public class WebSecurityConfig {
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
-    }
-
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
     }
 }

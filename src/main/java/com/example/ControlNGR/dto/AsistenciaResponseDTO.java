@@ -14,6 +14,11 @@ public class AsistenciaResponseDTO {
     private String estado;
     private String observaciones;
     private Boolean salidaAutomatica;
+    private String ipEntrada;
+    private String ipSalida;
+    /** Si la entrada fue en feriado: nombre del feriado y dias de compensacion abonados. */
+    private String feriado;
+    private java.math.BigDecimal diasCompensacionAbonados;
     
     public AsistenciaResponseDTO() {}
     
@@ -27,6 +32,8 @@ public class AsistenciaResponseDTO {
         this.estado = asistencia.getEstado();
         this.observaciones = asistencia.getObservaciones();
         this.salidaAutomatica = asistencia.getSalidaAutomatica();
+        this.ipEntrada = asistencia.getIpEntrada();
+        this.ipSalida = asistencia.getIpSalida();
     }
 
 	public Integer getId() {
@@ -101,4 +108,13 @@ public class AsistenciaResponseDTO {
 		this.salidaAutomatica = salidaAutomatica;
 	}
     
+
+    public String getIpEntrada() { return ipEntrada; }
+    public String getIpSalida() { return ipSalida; }
+
+    public String getFeriado() { return feriado; }
+    public void setFeriado(String feriado) { this.feriado = feriado; }
+
+    public java.math.BigDecimal getDiasCompensacionAbonados() { return diasCompensacionAbonados; }
+    public void setDiasCompensacionAbonados(java.math.BigDecimal dias) { this.diasCompensacionAbonados = dias; }
 }

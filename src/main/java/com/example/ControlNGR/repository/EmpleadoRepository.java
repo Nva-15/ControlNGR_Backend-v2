@@ -15,7 +15,8 @@ public interface EmpleadoRepository extends JpaRepository<Empleado, Integer> {
 
     Optional<Empleado> findByDni(String dni);
 
-    Optional<Empleado> findByUsername(String username);
+    @Query("SELECT e FROM Empleado e WHERE e.usuario.username = :username")
+    Optional<Empleado> findByUsername(@Param("username") String username);
 
     Optional<Empleado> findFirstByEmail(String email);
 
@@ -23,28 +24,33 @@ public interface EmpleadoRepository extends JpaRepository<Empleado, Integer> {
 
     Boolean existsByDni(String dni);
 
-    Boolean existsByUsername(String username);
-
     List<Empleado> findByActivo(Boolean activo);
 
     List<Empleado> findByNivel(String nivel);
 
-    List<Empleado> findByRol(String rol);
+    @Query("SELECT e FROM Empleado e WHERE LOWER(e.usuario.tipoUsuario.codigo) = LOWER(:rol)")
+    List<Empleado> findByRol(@Param("rol") String rol);
 
-    List<Empleado> findByUsuarioActivo(Boolean usuarioActivo);
+    @Query("SELECT e FROM Empleado e WHERE e.usuario.activo = :activo")
+    List<Empleado> findByUsuarioActivo(@Param("activo") Boolean usuarioActivo);
 
-    List<Empleado> findByRolAndActivo(String rol, Boolean activo);
+    @Query("SELECT e FROM Empleado e WHERE LOWER(e.usuario.tipoUsuario.codigo) IN :roles " +
+           "AND e.activo = true AND e.usuario.activo = true")
+    List<Empleado> findActivosPorRoles(@Param("roles") List<String> roles);
 
-    @Query("SELECT e FROM Empleado e WHERE e.activo = true AND LOWER(e.rol) <> 'admin'")
+    /** Empleados activos que tienen horario y marcan asistencia. */
+    @Query("SELECT e FROM Empleado e LEFT JOIN e.usuario u LEFT JOIN u.tipoUsuario t " +
+           "WHERE e.activo = true AND (t IS NULL OR t.marcaAsistencia = true)")
     List<Empleado> findEmpleadosConHorario();
 
-    @Query("SELECT e FROM Empleado e WHERE LOWER(e.rol) = LOWER(:rol) AND e.activo = true AND LOWER(e.rol) <> 'admin'")
+    @Query("SELECT e FROM Empleado e WHERE LOWER(e.usuario.tipoUsuario.codigo) = LOWER(:rol) " +
+           "AND e.activo = true AND e.usuario.tipoUsuario.marcaAsistencia = true")
     List<Empleado> findEmpleadosConHorarioPorRol(@Param("rol") String rol);
 
     @Query("SELECT e FROM Empleado e WHERE e.nombre LIKE %:nombre%")
     List<Empleado> buscarPorNombre(@Param("nombre") String nombre);
 
     // Contar empleados activos por lista de roles
-    @Query("SELECT COUNT(e) FROM Empleado e WHERE e.activo = true AND LOWER(e.rol) IN :roles")
+    @Query("SELECT COUNT(e) FROM Empleado e WHERE e.activo = true AND LOWER(e.usuario.tipoUsuario.codigo) IN :roles")
     Long countByRolInAndActivoTrue(@Param("roles") List<String> roles);
 }

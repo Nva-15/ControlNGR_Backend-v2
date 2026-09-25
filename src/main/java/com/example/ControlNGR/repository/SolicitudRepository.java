@@ -14,7 +14,7 @@ public interface SolicitudRepository extends JpaRepository<Solicitud, Integer> {
     
     List<Solicitud> findByEmpleadoId(Integer empleadoId);
     List<Solicitud> findByEstado(String estado);
-    List<Solicitud> findByTipo(String tipo);
+    List<Solicitud> findByTipoSolicitudCodigo(String codigo);
     
     List<Solicitud> findByEmpleadoIdOrderByFechaSolicitudDesc(Integer empleadoId);
     
@@ -43,7 +43,7 @@ public interface SolicitudRepository extends JpaRepository<Solicitud, Integer> {
             @Param("fechaFin") LocalDate fechaFin);
     
     @Query("SELECT s FROM Solicitud s WHERE s.empleado.id != :empleadoId " +
-           "AND s.empleado.rol = :rolEmpleado " +
+           "AND s.empleado.usuario.tipoUsuario.codigo = :rolEmpleado " +
            "AND s.estado IN ('pendiente', 'aprobado') " +
            "AND ((s.fechaInicio BETWEEN :fechaInicio AND :fechaFin) OR " +
            "(s.fechaFin BETWEEN :fechaInicio AND :fechaFin) OR " +
@@ -65,6 +65,20 @@ public interface SolicitudRepository extends JpaRepository<Solicitud, Integer> {
     List<Solicitud> findSolicitudesAprobadasEnRango(
             @Param("fechaInicio") LocalDate fechaInicio,
             @Param("fechaFin") LocalDate fechaFin);
+
+    /** Dias ya comprometidos en solicitudes pendientes que descuentan del mismo saldo. */
+    @Query("SELECT COALESCE(SUM(s.diasSolicitados), 0) FROM Solicitud s WHERE s.empleado.id = :empleadoId " +
+           "AND s.estado = 'pendiente' AND s.tipoSolicitud.descuentaDe = :descuentaDe " +
+           "AND (:excluirId IS NULL OR s.id <> :excluirId)")
+    java.math.BigDecimal sumarDiasPendientes(
+            @Param("empleadoId") Integer empleadoId,
+            @Param("descuentaDe") String descuentaDe,
+            @Param("excluirId") Integer excluirId);
+
+    /** Pendientes cuyos solicitantes tienen alguno de los roles indicados. */
+    @Query("SELECT s FROM Solicitud s WHERE s.estado = 'pendiente' " +
+           "AND s.empleado.usuario.tipoUsuario.codigo IN :roles ORDER BY s.fechaSolicitud DESC")
+    List<Solicitud> findPendientesDeRoles(@Param("roles") List<String> roles);
 
     // Contar solicitudes con cambio de estado reciente para un empleado
     @Query("SELECT COUNT(s) FROM Solicitud s WHERE s.empleado.id = :empleadoId " +

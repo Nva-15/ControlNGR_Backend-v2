@@ -2,357 +2,532 @@ package com.example.ControlNGR.service;
 
 import com.example.ControlNGR.dto.SolicitudRequestDTO;
 import com.example.ControlNGR.dto.SolicitudResponseDTO;
-import com.example.ControlNGR.entity.Empleado;
-import com.example.ControlNGR.entity.Solicitud;
-import com.example.ControlNGR.repository.EmpleadoRepository;
-import com.example.ControlNGR.repository.SolicitudRepository;
+import com.example.ControlNGR.entity.*;
+import com.example.ControlNGR.entity.MovimientoSaldo.Origen;
+import com.example.ControlNGR.entity.MovimientoSaldo.TipoMovimiento;
+import com.example.ControlNGR.repository.*;
+import com.example.ControlNGR.security.AccesoDenegadoException;
+import com.example.ControlNGR.security.Roles;
+import com.example.ControlNGR.security.UsuarioActual;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Solicitudes de vacaciones, compensacion por feriado, descanso medico y licencias.
+ * <ul>
+ *   <li>Al crear: se valida que haya saldo disponible (saldo - pendientes) y la evidencia si el tipo la exige.</li>
+ *   <li>Al aprobar: se descuenta el saldo (movimiento CARGO).</li>
+ *   <li>Al corregir de aprobado a rechazado: se devuelven los dias (movimiento REVERSION).</li>
+ *   <li>Quien aprueba a quien se define en la tabla reglas_aprobacion.</li>
+ * </ul>
+ */
 @Service
 public class SolicitudService {
 
     private static final Logger logger = LoggerFactory.getLogger(SolicitudService.class);
-
-    @Autowired
-    private SolicitudRepository solicitudRepository;
-
-    @Autowired
-    private EmpleadoRepository empleadoRepository;
-
-    @Autowired
-    private HorarioSemanalService horarioSemanalService;
-
-    @Autowired
-    private EmailService emailService;
-
-    private static final DateTimeFormatter AUDIT_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-    /** Verifica si el empleado puede editar la solicitud. */
+    private final SolicitudRepository solicitudRepository;
+    private final EmpleadoRepository empleadoRepository;
+    private final TipoSolicitudRepository tipoSolicitudRepository;
+    private final MotivoLicenciaRepository motivoLicenciaRepository;
+    private final SolicitudEvidenciaRepository evidenciaRepository;
+    private final SolicitudHistorialRepository historialRepository;
+    private final ReglaAprobacionRepository reglaRepository;
+    private final HorarioSemanalService horarioSemanalService;
+    private final SaldoService saldoService;
+    private final EvidenciaService evidenciaService;
+    private final EmailService emailService;
+    private final UsuarioActual usuarioActual;
+    private final TransactionTemplate nuevaTransaccion;
+
+    public SolicitudService(SolicitudRepository solicitudRepository,
+                            EmpleadoRepository empleadoRepository,
+                            TipoSolicitudRepository tipoSolicitudRepository,
+                            MotivoLicenciaRepository motivoLicenciaRepository,
+                            SolicitudEvidenciaRepository evidenciaRepository,
+                            SolicitudHistorialRepository historialRepository,
+                            ReglaAprobacionRepository reglaRepository,
+                            HorarioSemanalService horarioSemanalService,
+                            SaldoService saldoService,
+                            EvidenciaService evidenciaService,
+                            EmailService emailService,
+                            UsuarioActual usuarioActual,
+                            PlatformTransactionManager transactionManager) {
+        this.solicitudRepository = solicitudRepository;
+        this.empleadoRepository = empleadoRepository;
+        this.tipoSolicitudRepository = tipoSolicitudRepository;
+        this.motivoLicenciaRepository = motivoLicenciaRepository;
+        this.evidenciaRepository = evidenciaRepository;
+        this.historialRepository = historialRepository;
+        this.reglaRepository = reglaRepository;
+        this.horarioSemanalService = horarioSemanalService;
+        this.saldoService = saldoService;
+        this.evidenciaService = evidenciaService;
+        this.emailService = emailService;
+        this.usuarioActual = usuarioActual;
+        this.nuevaTransaccion = new TransactionTemplate(transactionManager);
+        this.nuevaTransaccion.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
+
+    // ==================== PERMISOS ====================
+
+    /** Si el empleado aprobador puede aprobar/rechazar solicitudes del solicitante (segun reglas_aprobacion). */
+    public boolean puedeAprobar(Empleado aprobador, Empleado solicitante) {
+        if (aprobador == null || solicitante == null || aprobador.getId().equals(solicitante.getId())) {
+            return false;
+        }
+        String rolAprobador = aprobador.getRol();
+        String rolSolicitante = solicitante.getRol();
+        return rolAprobador != null && rolSolicitante != null
+                && Boolean.TRUE.equals(aprobador.getUsuario().getActivo())
+                && reglaRepository.puedeAprobar(rolSolicitante, rolAprobador);
+    }
+
+    /** Verifica si el empleado puede editar la solicitud (propia y pendiente). */
     public boolean puedeEditarSolicitud(Integer solicitudId, Integer empleadoId, String rolEmpleado) {
-        Optional<Solicitud> solicitudOpt = solicitudRepository.findById(solicitudId);
-        if (!solicitudOpt.isPresent()) {
-            return false;
-        }
-
-        Solicitud solicitud = solicitudOpt.get();
-        boolean esMiSolicitud = solicitud.getEmpleado().getId().equals(empleadoId);
-
-        return esMiSolicitud && "pendiente".equals(solicitud.getEstado());
+        return solicitudRepository.findById(solicitudId)
+                .map(s -> s.getEmpleado().getId().equals(empleadoId) && Solicitud.PENDIENTE.equals(s.getEstado()))
+                .orElse(false);
     }
 
-    /** Verifica si el empleado puede gestionar la solicitud. */
+    /** Verifica si el empleado puede gestionar (aprobar/rechazar) la solicitud. */
     public boolean puedeGestionarSolicitud(Integer solicitudId, Integer empleadoId, String rolEmpleado, String accion) {
-        Optional<Solicitud> solicitudOpt = solicitudRepository.findById(solicitudId);
-        Optional<Empleado> empleadoOpt = empleadoRepository.findById(empleadoId);
-
-        if (!solicitudOpt.isPresent() || !empleadoOpt.isPresent()) {
-            return false;
-        }
-
-        Solicitud solicitud = solicitudOpt.get();
-        boolean esMiSolicitud = solicitud.getEmpleado().getId().equals(empleadoId);
-        String rolSolicitud = solicitud.getEmpleado().getRol();
-
-        if (esMiSolicitud) {
-            return false;
-        }
-
-        if (!Arrays.asList("pendiente", "aprobado", "rechazado").contains(solicitud.getEstado())) {
-            return false;
-        }
-
-        switch (rolSolicitud) {
-            case "tecnico":
-            case "hd":
-            case "noc":
-                return "supervisor".equals(rolEmpleado) || "admin".equals(rolEmpleado);
-            case "supervisor":
-                return "admin".equals(rolEmpleado);
-            case "admin":
-                return "admin".equals(rolEmpleado);
-            default:
-                return false;
-        }
+        Optional<Solicitud> s = solicitudRepository.findById(solicitudId);
+        Optional<Empleado> e = empleadoRepository.findById(empleadoId);
+        return s.isPresent() && e.isPresent() && puedeAprobar(e.get(), s.get().getEmpleado());
     }
 
-    /** Gestiona una solicitud (aprobar/rechazar). */
-    public SolicitudResponseDTO gestionarSolicitud(Integer id, String estado, Integer idAprobador, String comentarios) {
-        Optional<Solicitud> solicitudOpt = solicitudRepository.findById(id);
-        Optional<Empleado> aprobadorOpt = empleadoRepository.findById(idAprobador);
+    // ==================== CREAR ====================
 
-        if (!solicitudOpt.isPresent()) {
-            throw new RuntimeException("Solicitud no encontrada");
+    @Transactional
+    public SolicitudResponseDTO crearSolicitud(SolicitudRequestDTO request, MultipartFile archivo) {
+        Empleado empleado = usuarioActual.empleadoRequerido();
+        if (request.getEmpleadoId() != null && !request.getEmpleadoId().equals(empleado.getId())) {
+            throw new AccesoDenegadoException("Solo puede registrar solicitudes a su nombre");
+        }
+        if (!Boolean.TRUE.equals(empleado.getUsuario().getTipoUsuario().getPuedeSolicitar())) {
+            throw new AccesoDenegadoException("Su rol no registra solicitudes");
         }
 
-        if (!aprobadorOpt.isPresent()) {
-            throw new RuntimeException("Aprobador no encontrado");
-        }
+        TipoSolicitud tipo = obtenerTipo(request.getTipo());
+        validarFechas(request.getFechaInicio(), request.getFechaFin());
+        BigDecimal dias = calcularDias(request.getFechaInicio(), request.getFechaFin());
 
-        Solicitud solicitud = solicitudOpt.get();
-        Empleado aprobador = aprobadorOpt.get();
-
-        if (!puedeGestionarSolicitud(id, idAprobador, aprobador.getRol(), estado)) {
-            throw new RuntimeException("No tiene permisos para gestionar esta solicitud");
-        }
-
-        if (solicitud.getEmpleado().getId().equals(idAprobador)) {
-            throw new RuntimeException("No puede aprobar/rechazar su propia solicitud");
-        }
-
-        if (!Arrays.asList("aprobado", "rechazado").contains(estado.toLowerCase())) {
-            throw new RuntimeException("Estado inválido para gestión");
-        }
-
-        String estadoAnterior = solicitud.getEstado();
-        boolean esCorreccion = Arrays.asList("aprobado", "rechazado").contains(estadoAnterior);
-
-        solicitud.setEstado(estado.toLowerCase());
-        solicitud.setAprobadoPor(aprobador);
-        solicitud.setFechaAprobacion(LocalDateTime.now());
-
-        // Agregar nota de corrección si aplica
-        if (esCorreccion && !estadoAnterior.equals(estado.toLowerCase())) {
-            String motivoActual = solicitud.getMotivo() != null ? solicitud.getMotivo() : "";
-
-            if (motivoActual.contains("[Estado corregido")) {
-                motivoActual = motivoActual.split("\\[Estado corregido")[0].trim();
+        MotivoLicencia motivoLicencia = null;
+        if (Boolean.TRUE.equals(tipo.getRequiereMotivoLicencia())) {
+            if (request.getMotivoLicenciaId() == null) {
+                throw new IllegalArgumentException("Debe indicar el motivo de la licencia");
             }
-
-            String notaCorreccion = "\n\n[Estado corregido por " + aprobador.getNombre() +
-                                   " - " + LocalDateTime.now().format(AUDIT_FORMATTER) +
-                                   "] De " + estadoAnterior.toUpperCase() + " a " + estado.toUpperCase();
-            if (comentarios != null && !comentarios.trim().isEmpty()) {
-                notaCorreccion += "\nMotivo: " + comentarios;
-            }
-            solicitud.setMotivo(motivoActual + notaCorreccion);
-        } else if (comentarios != null && !comentarios.trim().isEmpty()) {
-            String motivoActual = solicitud.getMotivo() != null ? solicitud.getMotivo() : "";
-            solicitud.setMotivo(motivoActual + "\n\nComentarios de gestión: " + comentarios);
+            motivoLicencia = motivoLicenciaRepository.findById(request.getMotivoLicenciaId())
+                    .filter(m -> Boolean.TRUE.equals(m.getActivo()))
+                    .orElseThrow(() -> new IllegalArgumentException("Motivo de licencia no valido"));
+        }
+        if (Boolean.TRUE.equals(tipo.getRequiereEvidencia()) && (archivo == null || archivo.isEmpty())) {
+            throw new IllegalArgumentException("Para " + tipo.getNombre().toLowerCase()
+                    + " debe adjuntar la evidencia (foto o PDF)");
         }
 
-        Solicitud savedSolicitud = solicitudRepository.save(solicitud);
-
-        // Integrar con horarios semanales
-        try {
-            if ("aprobado".equals(estado.toLowerCase())) {
-                horarioSemanalService.aplicarSolicitudAprobada(savedSolicitud);
-            } else if (esCorreccion && "rechazado".equals(estado.toLowerCase()) &&
-                       "aprobado".equals(estadoAnterior)) {
-                horarioSemanalService.revertirSolicitud(savedSolicitud.getId());
-            }
-        } catch (Exception e) {
-            logger.error("Error al actualizar horarios semanales: {}", e.getMessage());
-        }
-
-        // Enviar notificación
-        notificarGestionSolicitud(savedSolicitud, aprobador, comentarios);
-
-        return new SolicitudResponseDTO(savedSolicitud);
-    }
-
-    private void notificarGestionSolicitud(Solicitud solicitud, Empleado aprobador, String comentarios) {
-        try {
-            Empleado empleado = solicitud.getEmpleado();
-            if (empleado.getEmail() != null && !empleado.getEmail().isEmpty()) {
-                String fechaInicio = solicitud.getFechaInicio().format(DATE_FORMATTER);
-                String fechaFin = solicitud.getFechaFin().format(DATE_FORMATTER);
-                String nombreAprobador = aprobador != null ? aprobador.getNombre() : "Sistema";
-
-                emailService.enviarNotificacionSolicitud(
-                    empleado.getEmail(),
-                    empleado.getNombre(),
-                    solicitud.getTipo(),
-                    solicitud.getEstado(),
-                    comentarios,
-                    fechaInicio,
-                    fechaFin,
-                    nombreAprobador
-                );
-            }
-        } catch (Exception e) {
-            logger.error("Error enviando notificación de gestión: {}", e.getMessage());
-        }
-    }
-
-    /** Edita una solicitud existente. */
-    public SolicitudResponseDTO editarSolicitud(Integer id, Map<String, Object> payload,
-                                                Integer empleadoEditorId, String rolEditor) {
-
-        Optional<Solicitud> solicitudOpt = solicitudRepository.findById(id);
-        if (!solicitudOpt.isPresent()) {
-            throw new RuntimeException("Solicitud no encontrada");
-        }
-
-        Solicitud solicitud = solicitudOpt.get();
-
-        if (!puedeEditarSolicitud(id, empleadoEditorId, rolEditor)) {
-            throw new RuntimeException("No tiene permisos para editar esta solicitud");
-        }
-
-        Optional<Empleado> editorOpt = empleadoRepository.findById(empleadoEditorId);
-        if (!editorOpt.isPresent()) {
-            throw new RuntimeException("Empleado editor no encontrado");
-        }
-        String nombreEditor = editorOpt.get().getNombre();
-
-        StringBuilder nuevoMotivo = new StringBuilder();
-
-        if (payload.containsKey("fechaInicio")) {
-            String fechaInicioStr = (String) payload.get("fechaInicio");
-            LocalDate fechaInicio = LocalDate.parse(fechaInicioStr);
-            if (solicitud.getFechaFin() != null && fechaInicio.isAfter(solicitud.getFechaFin())) {
-                throw new RuntimeException("La fecha de inicio no puede ser posterior a la fecha de fin");
-            }
-            solicitud.setFechaInicio(fechaInicio);
-        }
-
-        if (payload.containsKey("fechaFin")) {
-            String fechaFinStr = (String) payload.get("fechaFin");
-            LocalDate fechaFin = LocalDate.parse(fechaFinStr);
-            if (solicitud.getFechaInicio() != null && fechaFin.isBefore(solicitud.getFechaInicio())) {
-                throw new RuntimeException("La fecha de fin no puede ser anterior a la fecha de inicio");
-            }
-            solicitud.setFechaFin(fechaFin);
-        }
-
-        if (payload.containsKey("tipo")) {
-            solicitud.setTipo((String) payload.get("tipo"));
-        }
-
-        if (payload.containsKey("motivo")) {
-            String motivoNuevo = (String) payload.get("motivo");
-            String motivoBase = motivoNuevo;
-
-            if (motivoBase != null && motivoBase.contains("CONFLICTO DE FECHAS:")) {
-                motivoBase = motivoBase.split("CONFLICTO DE FECHAS:")[0].trim();
-            }
-
-            if (motivoBase != null && motivoBase.contains("[Editado por")) {
-                motivoBase = motivoBase.split("\\[Editado por")[0].trim();
-            }
-
-            nuevoMotivo.append(motivoBase);
-            nuevoMotivo.append("\n\n[Editado por ").append(nombreEditor)
-                      .append(" - ").append(LocalDateTime.now().format(AUDIT_FORMATTER)).append("]");
-
-            solicitud.setMotivo(nuevoMotivo.toString());
-        }
-
-        Solicitud solicitudActualizada = solicitudRepository.save(solicitud);
-        return new SolicitudResponseDTO(solicitudActualizada);
-    }
-
-    /** Crea una nueva solicitud. */
-    public SolicitudResponseDTO crearSolicitud(SolicitudRequestDTO request) {
-        Optional<Empleado> empleadoOpt = empleadoRepository.findById(request.getEmpleadoId());
-        if (!empleadoOpt.isPresent()) {
-            throw new RuntimeException("Empleado no encontrado");
-        }
-
-        Empleado empleado = empleadoOpt.get();
-
-        if (request.getFechaInicio() == null || request.getFechaFin() == null) {
-            throw new RuntimeException("Fechas requeridas");
-        }
-
-        if (request.getFechaInicio().isAfter(request.getFechaFin())) {
-            throw new RuntimeException("La fecha de inicio no puede ser posterior a la fecha de fin");
-        }
-
-        // Verificar conflictos por rol
-        List<Solicitud> conflictosRol = verificarConflictosPorRolYFechas(
-            request.getEmpleadoId(),
-            empleado.getRol(),
-            request.getFechaInicio(),
-            request.getFechaFin()
-        );
-
-        String motivo = request.getMotivo();
-
-        if (motivo != null && motivo.contains("CONFLICTO DE FECHAS:")) {
-            motivo = motivo.split("CONFLICTO DE FECHAS:")[0].trim();
-        }
-
-        // Agregar nota de conflicto si existe
-        if (!conflictosRol.isEmpty()) {
-            StringBuilder conflictoInfo = new StringBuilder();
-            conflictoInfo.append("\n\nCONFLICTO DE FECHAS: ");
-            conflictoInfo.append("Existe(n) ").append(conflictosRol.size()).append(" solicitud(es) ");
-            conflictoInfo.append("de compañeros del mismo rol en este período:\n");
-
-            for (Solicitud conf : conflictosRol) {
-                conflictoInfo.append("- ").append(conf.getEmpleado().getNombre());
-                conflictoInfo.append(" (").append(conf.getTipo()).append(": ");
-                conflictoInfo.append(conf.getFechaInicio().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
-                conflictoInfo.append(" - ");
-                conflictoInfo.append(conf.getFechaFin().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
-                conflictoInfo.append(")\n");
-            }
-
-            motivo = motivo + conflictoInfo.toString();
-        }
+        validarSinSolapamiento(empleado.getId(), request.getFechaInicio(), request.getFechaFin(), null);
+        validarSaldoDisponible(empleado, tipo, dias, null);
 
         Solicitud solicitud = new Solicitud();
         solicitud.setEmpleado(empleado);
-        solicitud.setTipo(request.getTipo());
+        solicitud.setTipoSolicitud(tipo);
+        solicitud.setMotivoLicencia(motivoLicencia);
         solicitud.setFechaInicio(request.getFechaInicio());
         solicitud.setFechaFin(request.getFechaFin());
-        solicitud.setMotivo(motivo);
-        solicitud.setEstado("pendiente");
+        solicitud.setDiasSolicitados(dias);
+        solicitud.setMotivo(agregarNotaConflictos(empleado, request));
+        solicitud.setEstado(Solicitud.PENDIENTE);
+        solicitud = solicitudRepository.save(solicitud);
 
-        Solicitud savedSolicitud = solicitudRepository.save(solicitud);
+        if (archivo != null && !archivo.isEmpty()) {
+            SolicitudEvidencia evidencia = evidenciaService.guardar(archivo, solicitud);
+            limpiarArchivoSiFalla(evidencia.getNombreArchivo());
+            solicitud.getEvidencias().add(evidenciaRepository.save(evidencia));
+        }
 
-        // Enviar notificaciones
-        notificarNuevaSolicitud(empleado, savedSolicitud);
+        historialRepository.save(new SolicitudHistorial(solicitud, null, Solicitud.PENDIENTE,
+                empleado.getUsuario(), "Solicitud registrada"));
 
-        return new SolicitudResponseDTO(savedSolicitud);
+        notificarNuevaSolicitud(empleado, solicitud);
+        return new SolicitudResponseDTO(solicitud);
     }
+
+    // ==================== GESTIONAR ====================
+
+    /** Aprueba o rechaza (tambien corrige una decision previa). El aprobador es el usuario autenticado. */
+    @Transactional
+    public SolicitudResponseDTO gestionarSolicitud(Integer id, String estado, String comentarios) {
+        Empleado aprobador = usuarioActual.empleadoRequerido();
+        Solicitud solicitud = solicitudRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Solicitud no encontrada"));
+
+        if (solicitud.getEmpleado().getId().equals(aprobador.getId())) {
+            throw new AccesoDenegadoException("No puede aprobar/rechazar su propia solicitud");
+        }
+        if (!puedeAprobar(aprobador, solicitud.getEmpleado())) {
+            throw new AccesoDenegadoException("No tiene permisos para gestionar las solicitudes de este colaborador");
+        }
+
+        String nuevo = estado == null ? "" : estado.trim().toLowerCase();
+        if (!Solicitud.APROBADO.equals(nuevo) && !Solicitud.RECHAZADO.equals(nuevo)) {
+            throw new IllegalArgumentException("Estado inválido. Solo se permite 'aprobado' o 'rechazado'");
+        }
+        String anterior = solicitud.getEstado();
+        if (nuevo.equals(anterior)) {
+            throw new IllegalStateException("La solicitud ya se encuentra en estado " + nuevo);
+        }
+
+        TipoSaldo tipoSaldo = solicitud.getTipoSolicitud().getTipoSaldo();
+        Usuario usuario = aprobador.getUsuario();
+        if (tipoSaldo != null) {
+            if (Solicitud.APROBADO.equals(nuevo)) {
+                saldoService.registrar(solicitud.getEmpleado(), tipoSaldo, TipoMovimiento.CARGO,
+                        solicitud.getDiasSolicitados().negate(), Origen.SOLICITUD,
+                        "Solicitud #" + solicitud.getId() + " aprobada (" + rango(solicitud) + ")",
+                        usuario, solicitud, null, null, false);
+            } else if (Solicitud.APROBADO.equals(anterior)) {
+                saldoService.registrar(solicitud.getEmpleado(), tipoSaldo, TipoMovimiento.REVERSION,
+                        solicitud.getDiasSolicitados(), Origen.SOLICITUD,
+                        "Solicitud #" + solicitud.getId() + " cambiada de aprobada a rechazada",
+                        usuario, solicitud, null, null, true);
+            }
+        }
+
+        solicitud.setEstado(nuevo);
+        solicitud.setAprobadoPor(aprobador);
+        solicitud.setFechaAprobacion(LocalDateTime.now());
+        if (comentarios != null && !comentarios.isBlank()) {
+            solicitud.setComentarioGestion(comentarios.trim());
+        }
+        Solicitud guardada = solicitudRepository.save(solicitud);
+        historialRepository.save(new SolicitudHistorial(guardada, anterior, nuevo, usuario, comentarios));
+
+        // El horario semanal se actualiza cuando la transaccion se confirma
+        Integer solicitudId = guardada.getId();
+        boolean aplicar = Solicitud.APROBADO.equals(nuevo);
+        boolean revertir = Solicitud.APROBADO.equals(anterior);
+        despuesDeConfirmar(() -> {
+            try {
+                nuevaTransaccion.executeWithoutResult(status -> {
+                    if (aplicar) {
+                        solicitudRepository.findById(solicitudId).ifPresent(horarioSemanalService::aplicarSolicitudAprobada);
+                    } else if (revertir) {
+                        horarioSemanalService.revertirSolicitud(solicitudId);
+                    }
+                });
+            } catch (Exception e) {
+                logger.error("Error al actualizar horarios semanales: {}", e.getMessage());
+            }
+        });
+
+        notificarGestionSolicitud(guardada, aprobador, comentarios);
+        return new SolicitudResponseDTO(guardada);
+    }
+
+    // ==================== EDITAR / ELIMINAR ====================
+
+    /** Edita fechas o motivo de una solicitud propia y pendiente. */
+    @Transactional
+    public SolicitudResponseDTO editarSolicitud(Integer id, Map<String, Object> payload) {
+        Empleado editor = usuarioActual.empleadoRequerido();
+        Solicitud solicitud = solicitudRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Solicitud no encontrada"));
+        if (!solicitud.getEmpleado().getId().equals(editor.getId()) || !Solicitud.PENDIENTE.equals(solicitud.getEstado())) {
+            throw new AccesoDenegadoException("Solo puede editar sus solicitudes pendientes");
+        }
+        if (payload.containsKey("tipo") && payload.get("tipo") != null
+                && !String.valueOf(payload.get("tipo")).equalsIgnoreCase(solicitud.getTipo())) {
+            throw new IllegalArgumentException("No se puede cambiar el tipo. Elimine la solicitud y registre una nueva");
+        }
+
+        LocalDate inicio = payload.containsKey("fechaInicio")
+                ? LocalDate.parse(String.valueOf(payload.get("fechaInicio"))) : solicitud.getFechaInicio();
+        LocalDate fin = payload.containsKey("fechaFin")
+                ? LocalDate.parse(String.valueOf(payload.get("fechaFin"))) : solicitud.getFechaFin();
+        validarFechas(inicio, fin);
+        BigDecimal dias = calcularDias(inicio, fin);
+        validarSinSolapamiento(editor.getId(), inicio, fin, solicitud.getId());
+        validarSaldoDisponible(editor, solicitud.getTipoSolicitud(), dias, solicitud.getId());
+
+        solicitud.setFechaInicio(inicio);
+        solicitud.setFechaFin(fin);
+        solicitud.setDiasSolicitados(dias);
+        if (payload.containsKey("motivo")) {
+            solicitud.setMotivo(payload.get("motivo") != null ? String.valueOf(payload.get("motivo")) : null);
+        }
+        Solicitud guardada = solicitudRepository.save(solicitud);
+        historialRepository.save(new SolicitudHistorial(guardada, Solicitud.PENDIENTE, Solicitud.PENDIENTE,
+                editor.getUsuario(), "Solicitud editada"));
+        return new SolicitudResponseDTO(guardada);
+    }
+
+    /** Elimina una solicitud propia y pendiente (con sus archivos). */
+    @Transactional
+    public void eliminarSolicitud(Integer id) {
+        Empleado empleado = usuarioActual.empleadoRequerido();
+        Solicitud solicitud = solicitudRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Solicitud no encontrada"));
+        if (!solicitud.getEmpleado().getId().equals(empleado.getId())) {
+            throw new AccesoDenegadoException("No tiene permisos para eliminar esta solicitud");
+        }
+        if (!Solicitud.PENDIENTE.equals(solicitud.getEstado())) {
+            throw new IllegalStateException("Solo se pueden eliminar solicitudes pendientes");
+        }
+        List<String> archivos = solicitud.getEvidencias().stream().map(SolicitudEvidencia::getNombreArchivo).toList();
+        solicitudRepository.delete(solicitud);
+        despuesDeConfirmar(() -> archivos.forEach(evidenciaService::eliminarArchivo));
+        logger.info("Solicitud {} eliminada por empleado {}", id, empleado.getId());
+    }
+
+    // ==================== EVIDENCIAS E HISTORIAL ====================
+
+    /** Evidencia visible para el solicitante, sus aprobadores, gerencia y admin. */
+    @Transactional(readOnly = true)
+    public Map.Entry<SolicitudEvidencia, Resource> obtenerEvidencia(Integer solicitudId, Integer evidenciaId) {
+        Solicitud solicitud = solicitudRepository.findById(solicitudId)
+                .orElseThrow(() -> new IllegalArgumentException("Solicitud no encontrada"));
+        validarPuedeVer(solicitud);
+        SolicitudEvidencia ev = evidenciaRepository.findByIdAndSolicitudId(evidenciaId, solicitudId)
+                .orElseThrow(() -> new IllegalArgumentException("Evidencia no encontrada"));
+        return Map.entry(ev, evidenciaService.cargar(ev));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> historial(Integer solicitudId) {
+        Solicitud solicitud = solicitudRepository.findById(solicitudId)
+                .orElseThrow(() -> new IllegalArgumentException("Solicitud no encontrada"));
+        validarPuedeVer(solicitud);
+        return historialRepository.findBySolicitudIdOrderByFechaAsc(solicitudId).stream().map(h -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("fecha", h.getFecha());
+            m.put("estadoAnterior", h.getEstadoAnterior());
+            m.put("estadoNuevo", h.getEstadoNuevo());
+            m.put("usuario", h.getUsuario() == null ? null
+                    : h.getUsuario().getEmpleado() != null ? h.getUsuario().getEmpleado().getNombre() : h.getUsuario().getUsername());
+            m.put("comentario", h.getComentario());
+            return m;
+        }).toList();
+    }
+
+    private void validarPuedeVer(Solicitud solicitud) {
+        Usuario usuario = usuarioActual.requerido();
+        if (Roles.esAdmin(usuario.getRol()) || Roles.esGerencia(usuario.getRol())) return;
+        Empleado actual = usuario.getEmpleado();
+        if (actual != null && (actual.getId().equals(solicitud.getEmpleado().getId())
+                || puedeAprobar(actual, solicitud.getEmpleado()))) return;
+        throw new AccesoDenegadoException("No tiene permisos para ver esta solicitud");
+    }
+
+    // ==================== CATALOGOS Y CONSULTAS ====================
+
+    @Transactional(readOnly = true)
+    public List<TipoSolicitud> tiposActivos() {
+        return tipoSolicitudRepository.findByActivoTrue();
+    }
+
+    @Transactional(readOnly = true)
+    public List<MotivoLicencia> motivosLicencia() {
+        return motivoLicenciaRepository.findByActivoTrueOrderByNombreAsc();
+    }
+
+    /** Pendientes que el usuario autenticado puede aprobar. */
+    @Transactional(readOnly = true)
+    public List<SolicitudResponseDTO> obtenerPendientesPorAprobar() {
+        Empleado aprobador = usuarioActual.empleadoRequerido();
+        List<String> roles = reglaRepository.rolesQueAprueba(aprobador.getRol());
+        if (roles.isEmpty()) return List.of();
+        return solicitudRepository.findPendientesDeRoles(roles).stream()
+                .filter(s -> !s.getEmpleado().getId().equals(aprobador.getId()))
+                .map(SolicitudResponseDTO::new)
+                .collect(Collectors.toList());
+    }
+
+    /** Verifica conflictos de fecha para un empleado. */
+    public List<Solicitud> verificarConflictosFecha(Integer empleadoId, LocalDate fechaInicio, LocalDate fechaFin) {
+        validarFechas(fechaInicio, fechaFin);
+        return solicitudRepository.findConflictosPorRangoFechas(empleadoId, fechaInicio, fechaFin);
+    }
+
+    /** Verifica conflictos de fecha por rol. */
+    public List<Solicitud> verificarConflictosPorRolYFechas(Integer empleadoId, String rolEmpleado, LocalDate fechaInicio, LocalDate fechaFin) {
+        validarFechas(fechaInicio, fechaFin);
+        return solicitudRepository.findConflictosPorRolYRangoFechas(empleadoId, rolEmpleado, fechaInicio, fechaFin);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SolicitudResponseDTO> obtenerMisSolicitudes(Integer empleadoId) {
+        return solicitudRepository.findByEmpleadoIdOrderByFechaSolicitudDesc(empleadoId)
+                .stream().map(SolicitudResponseDTO::new).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<SolicitudResponseDTO> obtenerPendientes() {
+        return solicitudRepository.findSolicitudesPendientes()
+                .stream().map(SolicitudResponseDTO::new).collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<SolicitudResponseDTO> obtenerTodas() {
+        return solicitudRepository.findAll()
+                .stream().map(SolicitudResponseDTO::new).collect(Collectors.toList());
+    }
+
+    /** Exporta solicitudes según el tipo de reporte. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> exportarSolicitudes(String tipoReporte, Integer empleadoId) {
+        Map<String, Object> reporte = new HashMap<>();
+        List<SolicitudResponseDTO> solicitudes;
+        if ("mis-solicitudes".equals(tipoReporte) && empleadoId != null) {
+            solicitudes = obtenerMisSolicitudes(empleadoId);
+            reporte.put("titulo", "Mis Solicitudes");
+        } else if ("pendientes".equals(tipoReporte)) {
+            solicitudes = obtenerPendientes();
+            reporte.put("titulo", "Solicitudes Pendientes");
+        } else if ("historial".equals(tipoReporte)) {
+            solicitudes = obtenerTodas().stream().filter(s -> !Solicitud.PENDIENTE.equals(s.getEstado())).toList();
+            reporte.put("titulo", "Historial de Solicitudes");
+        } else {
+            solicitudes = obtenerTodas();
+            reporte.put("titulo", "Todas las Solicitudes");
+        }
+        reporte.put("total", solicitudes.size());
+        reporte.put("solicitudes", solicitudes);
+        reporte.put("fecha_generacion", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+        return reporte;
+    }
+
+    // ==================== VALIDACIONES ====================
+
+    private TipoSolicitud obtenerTipo(String codigo) {
+        if (codigo == null || codigo.isBlank()) {
+            throw new IllegalArgumentException("El tipo de solicitud es requerido");
+        }
+        return tipoSolicitudRepository.findByCodigo(codigo.trim().toLowerCase())
+                .filter(t -> Boolean.TRUE.equals(t.getActivo()))
+                .orElseThrow(() -> new IllegalArgumentException("Tipo de solicitud no valido: " + codigo + ". Use uno de: "
+                        + tipoSolicitudRepository.findByActivoTrue().stream().map(TipoSolicitud::getCodigo)
+                                .collect(Collectors.joining(", "))));
+    }
+
+    private void validarFechas(LocalDate inicio, LocalDate fin) {
+        if (inicio == null || fin == null) {
+            throw new IllegalArgumentException("Fechas requeridas");
+        }
+        if (inicio.isAfter(fin)) {
+            throw new IllegalArgumentException("La fecha de inicio no puede ser posterior a la fecha de fin");
+        }
+    }
+
+    /** Dias calendario entre ambas fechas, incluidas. */
+    public static BigDecimal calcularDias(LocalDate inicio, LocalDate fin) {
+        return BigDecimal.valueOf(ChronoUnit.DAYS.between(inicio, fin) + 1);
+    }
+
+    private void validarSinSolapamiento(Integer empleadoId, LocalDate inicio, LocalDate fin, Integer excluirId) {
+        List<Solicitud> propias = solicitudRepository.findConflictosPorRangoFechas(empleadoId, inicio, fin).stream()
+                .filter(s -> excluirId == null || !s.getId().equals(excluirId))
+                .toList();
+        if (!propias.isEmpty()) {
+            Solicitud s = propias.get(0);
+            throw new IllegalStateException("Ya tiene una solicitud " + s.getEstado() + " de " + s.getTipo()
+                    + " en ese rango (" + rango(s) + ")");
+        }
+    }
+
+    /** Bloquea la solicitud si no hay dias suficientes (saldo menos lo pendiente). */
+    private void validarSaldoDisponible(Empleado empleado, TipoSolicitud tipo, BigDecimal dias, Integer excluirId) {
+        TipoSaldo tipoSaldo = tipo.getTipoSaldo();
+        if (tipoSaldo == null) return;
+        BigDecimal disponible = saldoService.disponible(empleado.getId(), tipoSaldo, excluirId);
+        if (disponible.compareTo(dias) < 0) {
+            throw new IllegalStateException("No tiene " + SaldoService.nombre(tipoSaldo) + " suficientes. Disponible: "
+                    + disponible.max(BigDecimal.ZERO).stripTrailingZeros().toPlainString()
+                    + " dia(s), solicitados: " + dias.stripTrailingZeros().toPlainString() + " dia(s).");
+        }
+    }
+
+    private String agregarNotaConflictos(Empleado empleado, SolicitudRequestDTO request) {
+        String motivo = request.getMotivo();
+        if (motivo != null && motivo.contains("CONFLICTO DE FECHAS:")) {
+            motivo = motivo.split("CONFLICTO DE FECHAS:")[0].trim();
+        }
+        List<Solicitud> conflictos = verificarConflictosPorRolYFechas(
+                empleado.getId(), empleado.getRol(), request.getFechaInicio(), request.getFechaFin());
+        if (conflictos.isEmpty()) return motivo;
+
+        StringBuilder sb = new StringBuilder(motivo == null ? "" : motivo);
+        sb.append("\n\nCONFLICTO DE FECHAS: Existe(n) ").append(conflictos.size())
+          .append(" solicitud(es) de compañeros del mismo rol en este período:\n");
+        for (Solicitud c : conflictos) {
+            sb.append("- ").append(c.getEmpleado().getNombre()).append(" (").append(c.getTipo()).append(": ")
+              .append(rango(c)).append(")\n");
+        }
+        return sb.toString();
+    }
+
+    private static String rango(Solicitud s) {
+        return s.getFechaInicio().format(DATE_FORMATTER) + " - " + s.getFechaFin().format(DATE_FORMATTER);
+    }
+
+    private void despuesDeConfirmar(Runnable accion) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    accion.run();
+                }
+            });
+        } else {
+            accion.run();
+        }
+    }
+
+    /** Si la transaccion no se confirma, borra el archivo ya escrito en disco. */
+    private void limpiarArchivoSiFalla(String nombreArchivo) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    if (status != STATUS_COMMITTED) {
+                        evidenciaService.eliminarArchivo(nombreArchivo);
+                    }
+                }
+            });
+        }
+    }
+
+    // ==================== NOTIFICACIONES ====================
 
     private void notificarNuevaSolicitud(Empleado empleado, Solicitud solicitud) {
         try {
-            String rolEmpleado = empleado.getRol();
-            String fechaInicio = solicitud.getFechaInicio().format(DATE_FORMATTER);
-            String fechaFin = solicitud.getFechaFin().format(DATE_FORMATTER);
-
-            if ("supervisor".equals(rolEmpleado)) {
-                // Notificar a admins
-                List<Empleado> admins = empleadoRepository.findByRol("admin");
-                for (Empleado admin : admins) {
-                    if (admin.getEmail() != null && !admin.getEmail().isEmpty()) {
-                        emailService.enviarNotificacionSolicitudSupervisor(
-                            admin.getEmail(),
-                            admin.getNombre(),
-                            empleado.getNombre(),
-                            solicitud.getTipo(),
-                            fechaInicio,
-                            fechaFin
-                        );
-                    }
-                }
-            } else if ("tecnico".equals(rolEmpleado) || "hd".equals(rolEmpleado) || "noc".equals(rolEmpleado)) {
-                // Notificar a supervisores
-                List<Empleado> supervisores = empleadoRepository.findByRol("supervisor");
-                for (Empleado supervisor : supervisores) {
-                    if (supervisor.getEmail() != null && !supervisor.getEmail().isEmpty()) {
-                        emailService.enviarNotificacionNuevaSolicitud(
-                            supervisor.getEmail(),
-                            supervisor.getNombre(),
-                            empleado.getNombre(),
-                            solicitud.getTipo(),
-                            fechaInicio,
-                            fechaFin
-                        );
-                    }
+            List<String> rolesAprobadores = reglaRepository.rolesAprobadores(empleado.getRol());
+            if (rolesAprobadores.isEmpty()) return;
+            String inicio = solicitud.getFechaInicio().format(DATE_FORMATTER);
+            String fin = solicitud.getFechaFin().format(DATE_FORMATTER);
+            for (Empleado aprobador : empleadoRepository.findActivosPorRoles(rolesAprobadores)) {
+                if (aprobador.getEmail() != null && !aprobador.getEmail().isEmpty()) {
+                    emailService.enviarNotificacionNuevaSolicitud(aprobador.getEmail(), aprobador.getNombre(),
+                            empleado.getNombre(), solicitud.getTipo(), inicio, fin);
                 }
             }
         } catch (Exception e) {
@@ -360,118 +535,17 @@ public class SolicitudService {
         }
     }
 
-    /** Verifica conflictos de fecha para un empleado. */
-    public List<Solicitud> verificarConflictosFecha(Integer empleadoId, LocalDate fechaInicio, LocalDate fechaFin) {
-        if (fechaInicio == null || fechaFin == null) {
-            throw new RuntimeException("Fechas inválidas");
+    private void notificarGestionSolicitud(Solicitud solicitud, Empleado aprobador, String comentarios) {
+        try {
+            Empleado empleado = solicitud.getEmpleado();
+            if (empleado.getEmail() != null && !empleado.getEmail().isEmpty()) {
+                emailService.enviarNotificacionSolicitud(empleado.getEmail(), empleado.getNombre(),
+                        solicitud.getTipo(), solicitud.getEstado(), comentarios,
+                        solicitud.getFechaInicio().format(DATE_FORMATTER), solicitud.getFechaFin().format(DATE_FORMATTER),
+                        aprobador != null ? aprobador.getNombre() : "Sistema");
+            }
+        } catch (Exception e) {
+            logger.error("Error enviando notificación de gestión: {}", e.getMessage());
         }
-
-        if (fechaInicio.isAfter(fechaFin)) {
-            throw new RuntimeException("La fecha de inicio no puede ser posterior a la fecha de fin");
-        }
-
-        return solicitudRepository.findConflictosPorRangoFechas(empleadoId, fechaInicio, fechaFin);
-    }
-
-    /** Verifica conflictos de fecha por rol. */
-    public List<Solicitud> verificarConflictosPorRolYFechas(Integer empleadoId, String rolEmpleado, LocalDate fechaInicio, LocalDate fechaFin) {
-        if (fechaInicio == null || fechaFin == null) {
-            throw new RuntimeException("Fechas inválidas");
-        }
-
-        if (fechaInicio.isAfter(fechaFin)) {
-            throw new RuntimeException("La fecha de inicio no puede ser posterior a la fecha de fin");
-        }
-
-        return solicitudRepository.findConflictosPorRolYRangoFechas(empleadoId, rolEmpleado, fechaInicio, fechaFin);
-    }
-
-    /** Obtiene las solicitudes del empleado. */
-    public List<SolicitudResponseDTO> obtenerMisSolicitudes(Integer empleadoId) {
-        return solicitudRepository.findByEmpleadoIdOrderByFechaSolicitudDesc(empleadoId)
-                .stream()
-                .map(SolicitudResponseDTO::new)
-                .collect(Collectors.toList());
-    }
-
-    /** Obtiene las solicitudes pendientes. */
-    public List<SolicitudResponseDTO> obtenerPendientes() {
-        return solicitudRepository.findSolicitudesPendientes()
-                .stream()
-                .map(SolicitudResponseDTO::new)
-                .collect(Collectors.toList());
-    }
-
-    /** Obtiene todas las solicitudes. */
-    public List<SolicitudResponseDTO> obtenerTodas() {
-        return solicitudRepository.findAll()
-                .stream()
-                .map(SolicitudResponseDTO::new)
-                .collect(Collectors.toList());
-    }
-
-    /** Edita una solicitud con datos del editor en el payload. */
-    public SolicitudResponseDTO editarSolicitud(Integer id, Map<String, Object> payload) {
-        if (!payload.containsKey("empleadoEditorId") || !payload.containsKey("rolEditor")) {
-            throw new RuntimeException("Datos de editor requeridos");
-        }
-        return editarSolicitud(id, payload, (Integer) payload.get("empleadoEditorId"), (String) payload.get("rolEditor"));
-    }
-
-    /** Exporta solicitudes según el tipo de reporte. */
-    public Map<String, Object> exportarSolicitudes(String tipoReporte, Integer empleadoId) {
-        Map<String, Object> reporte = new HashMap<>();
-
-        if ("mis-solicitudes".equals(tipoReporte) && empleadoId != null) {
-            List<SolicitudResponseDTO> solicitudes = obtenerMisSolicitudes(empleadoId);
-            reporte.put("titulo", "Mis Solicitudes");
-            reporte.put("total", solicitudes.size());
-            reporte.put("solicitudes", solicitudes);
-        } else if ("pendientes".equals(tipoReporte)) {
-            List<SolicitudResponseDTO> solicitudes = obtenerPendientes();
-            reporte.put("titulo", "Solicitudes Pendientes");
-            reporte.put("total", solicitudes.size());
-            reporte.put("solicitudes", solicitudes);
-        } else if ("historial".equals(tipoReporte)) {
-            List<SolicitudResponseDTO> todas = obtenerTodas();
-            List<SolicitudResponseDTO> historial = todas.stream()
-                    .filter(s -> !"pendiente".equals(s.getEstado()))
-                    .collect(Collectors.toList());
-            reporte.put("titulo", "Historial de Solicitudes");
-            reporte.put("total", historial.size());
-            reporte.put("solicitudes", historial);
-        } else {
-            List<SolicitudResponseDTO> todas = obtenerTodas();
-            reporte.put("titulo", "Todas las Solicitudes");
-            reporte.put("total", todas.size());
-            reporte.put("solicitudes", todas);
-        }
-
-        reporte.put("fecha_generacion", LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
-        return reporte;
-    }
-
-    /** Elimina una solicitud pendiente. */
-    public void eliminarSolicitud(Integer id, Integer empleadoId) {
-        Optional<Solicitud> solicitudOpt = solicitudRepository.findById(id);
-
-        if (!solicitudOpt.isPresent()) {
-            throw new RuntimeException("Solicitud no encontrada");
-        }
-
-        Solicitud solicitud = solicitudOpt.get();
-
-        // Verificar que el empleado sea el dueño de la solicitud
-        if (!solicitud.getEmpleado().getId().equals(empleadoId)) {
-            throw new RuntimeException("No tiene permisos para eliminar esta solicitud");
-        }
-
-        // Solo se pueden eliminar solicitudes pendientes
-        if (!"pendiente".equals(solicitud.getEstado())) {
-            throw new RuntimeException("Solo se pueden eliminar solicitudes pendientes");
-        }
-
-        solicitudRepository.deleteById(id);
-        logger.info("Solicitud {} eliminada por empleado {}", id, empleadoId);
     }
 }

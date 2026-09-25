@@ -29,6 +29,9 @@ public class NotificacionService {
     @Autowired
     private EmpleadoRepository empleadoRepository;
 
+    @Autowired
+    private com.example.ControlNGR.repository.ReglaAprobacionRepository reglaAprobacionRepository;
+
     @Transactional(readOnly = true)
     public NotificacionResumenDTO obtenerResumen(Empleado empleado) {
         NotificacionResumenDTO resumen = new NotificacionResumenDTO();
@@ -40,11 +43,11 @@ public class NotificacionService {
         resumen.setSolicitudesRechazadas(
                 solicitudRepository.countSolicitudesConEstadoDesde(empleado.getId(), "rechazado", hace7Dias));
 
-        // Solicitudes pendientes de aprobacion (solo para admin/supervisor)
-        String rol = empleado.getRol().toLowerCase();
-        if ("admin".equals(rol) || "supervisor".equals(rol)) {
+        // Solicitudes pendientes que este empleado puede aprobar (segun reglas_aprobacion)
+        List<String> rolesQueAprueba = reglaAprobacionRepository.rolesQueAprueba(empleado.getRol());
+        if (!rolesQueAprueba.isEmpty()) {
             resumen.setSolicitudesPendientes(
-                    solicitudRepository.findSolicitudesPendientes().size());
+                    solicitudRepository.findPendientesDeRoles(rolesQueAprueba).size());
         }
 
         // Eventos activos sin responder

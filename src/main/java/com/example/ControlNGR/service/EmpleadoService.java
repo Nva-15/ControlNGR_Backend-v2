@@ -9,11 +9,17 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.ControlNGR.dto.EmpleadoRequestDTO;
 import com.example.ControlNGR.entity.Empleado;
+import com.example.ControlNGR.entity.Saldo;
+import com.example.ControlNGR.entity.TipoSaldo;
+import com.example.ControlNGR.entity.Usuario;
+import com.example.ControlNGR.repository.DepartamentoRepository;
 import com.example.ControlNGR.repository.EmpleadoRepository;
+import com.example.ControlNGR.repository.SaldoRepository;
+import com.example.ControlNGR.repository.UsuarioRepository;
 
 @Service
 @Transactional
@@ -25,27 +31,19 @@ public class EmpleadoService {
     private EmpleadoRepository empleadoRepository;
 
     @Autowired
-    private PasswordEncoder passwordEncoder;
+    private UsuarioRepository usuarioRepository;
+
+    @Autowired
+    private UsuarioService usuarioService;
+
+    @Autowired
+    private DepartamentoRepository departamentoRepository;
+
+    @Autowired
+    private SaldoRepository saldoRepository;
 
     @Autowired
     private EmailService emailService;
-
-    /** Valida las credenciales del empleado. */
-    public Optional<Empleado> validarCredenciales(String username, String password) {
-        Optional<Empleado> empleadoOpt = empleadoRepository.findByUsername(username);
-        if (empleadoOpt.isPresent()) {
-            Empleado empleado = empleadoOpt.get();
-
-            if (Boolean.TRUE.equals(empleado.getActivo()) &&
-                Boolean.TRUE.equals(empleado.getUsuarioActivo())) {
-
-                if (passwordEncoder.matches(password, empleado.getPassword())) {
-                    return Optional.of(empleado);
-                }
-            }
-        }
-        return Optional.empty();
-    }
 
     /** Obtiene el perfil completo de un empleado. */
     public Map<String, Object> obtenerPerfilCompleto(Integer empleadoId) {
@@ -68,6 +66,8 @@ public class EmpleadoService {
             perfil.put("ingreso", empleado.getIngreso());
             perfil.put("foto", empleado.getFoto());
             perfil.put("activo", empleado.getActivo());
+            perfil.put("departamentoId", empleado.getDepartamentoId());
+            perfil.put("departamentoNombre", empleado.getDepartamentoNombre());
             perfil.put("usuarioActivo", empleado.getUsuarioActivo());
 
             return perfil;
@@ -184,36 +184,14 @@ public class EmpleadoService {
         return resultado;
     }
 
-    /** Cambia la contraseña del usuario. */
-    public Map<String, Object> cambiarPasswordUsuario(Integer empleadoId, String passwordActual, String passwordNueva) {
-        Optional<Empleado> empleadoOpt = empleadoRepository.findById(empleadoId);
-        if (!empleadoOpt.isPresent()) {
-            throw new RuntimeException("Empleado no encontrado");
+    /** Restablece la contraseña (admin/gerencia). El usuario debera cambiarla al ingresar. */
+    public boolean cambiarPasswordAdmin(Integer empleadoId, String passwordNueva) {
+        Optional<Usuario> usuarioOpt = usuarioRepository.findByEmpleadoId(empleadoId);
+        if (usuarioOpt.isEmpty()) {
+            return false;
         }
-
-        Empleado empleado = empleadoOpt.get();
-        Map<String, Object> resultado = new HashMap<>();
-
-        if (!passwordEncoder.matches(passwordActual, empleado.getPassword())) {
-            throw new RuntimeException("La contraseña actual es incorrecta");
-        }
-
-        if (passwordNueva == null || passwordNueva.trim().isEmpty()) {
-            throw new RuntimeException("La nueva contraseña es requerida");
-        }
-
-        if (passwordNueva.length() < 6) {
-            throw new RuntimeException("La contraseña debe tener al menos 6 caracteres");
-        }
-
-        if (passwordEncoder.matches(passwordNueva, empleado.getPassword())) {
-            throw new RuntimeException("La nueva contraseña no puede ser igual a la actual");
-        }
-
-        empleado.setPassword(passwordEncoder.encode(passwordNueva));
-        empleadoRepository.save(empleado);
-
-        // Enviar notificación
+        usuarioService.restablecerPassword(usuarioOpt.get(), passwordNueva);
+        Empleado empleado = usuarioOpt.get().getEmpleado();
         if (empleado.getEmail() != null && !empleado.getEmail().trim().isEmpty()) {
             try {
                 emailService.enviarNotificacionCambioPassword(empleado.getEmail(), empleado.getNombre());
@@ -221,54 +199,7 @@ public class EmpleadoService {
                 logger.error("Error enviando email de notificación: {}", e.getMessage());
             }
         }
-
-        resultado.put("success", true);
-        resultado.put("message", "Contraseña cambiada exitosamente");
-        resultado.put("empleadoId", empleadoId);
-        resultado.put("fechaCambio", java.time.LocalDateTime.now());
-
-        return resultado;
-    }
-
-    /** Cambia la contraseña (retorna boolean). */
-    public boolean cambiarPassword(Integer empleadoId, String passwordActual, String passwordNueva) {
-        try {
-            Map<String, Object> resultado = cambiarPasswordUsuario(empleadoId, passwordActual, passwordNueva);
-            return (Boolean) resultado.get("success");
-        } catch (RuntimeException e) {
-            return false;
-        }
-    }
-
-    /** Cambia la contraseña como administrador. */
-    public boolean cambiarPasswordAdmin(Integer empleadoId, String passwordNueva) {
-        Optional<Empleado> empleadoOpt = empleadoRepository.findById(empleadoId);
-        if (empleadoOpt.isPresent()) {
-            Empleado empleado = empleadoOpt.get();
-
-            if (passwordNueva == null || passwordNueva.trim().isEmpty()) {
-                throw new RuntimeException("La nueva contraseña es requerida");
-            }
-
-            if (passwordNueva.length() < 6) {
-                throw new RuntimeException("La contraseña debe tener al menos 6 caracteres");
-            }
-
-            empleado.setPassword(passwordEncoder.encode(passwordNueva));
-            empleadoRepository.save(empleado);
-
-            // Enviar notificación
-            if (empleado.getEmail() != null && !empleado.getEmail().trim().isEmpty()) {
-                try {
-                    emailService.enviarNotificacionCambioPassword(empleado.getEmail(), empleado.getNombre());
-                } catch (Exception e) {
-                    logger.error("Error enviando email de notificación: {}", e.getMessage());
-                }
-            }
-
-            return true;
-        }
-        return false;
+        return true;
     }
 
     /** Actualiza el perfil del empleado. */
@@ -327,184 +258,149 @@ public class EmpleadoService {
         return UUID.randomUUID().toString();
     }
 
-    /** Actualiza un empleado existente. */
-    public Empleado actualizarEmpleado(Integer id, Empleado empleadoActualizado) {
-        Optional<Empleado> empleadoExistenteOpt = empleadoRepository.findById(id);
-        if (!empleadoExistenteOpt.isPresent()) {
-            throw new RuntimeException("Empleado no encontrado");
+    /**
+     * Actualiza un empleado existente.
+     * @param puedeGestionarAcceso true si el editor puede cambiar rol/contraseña/usuario (admin o gerencia)
+     */
+    public Empleado actualizarEmpleado(Integer id, EmpleadoRequestDTO datos, boolean puedeGestionarAcceso) {
+        Empleado empleado = empleadoRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Empleado no encontrado"));
+
+        if (datos.getNombre() != null && !datos.getNombre().trim().isEmpty()) {
+            empleado.setNombre(datos.getNombre().trim());
         }
-
-        Empleado empleadoExistente = empleadoExistenteOpt.get();
-
-        // Actualizar nombre
-        if (empleadoActualizado.getNombre() != null &&
-            !empleadoActualizado.getNombre().trim().isEmpty() &&
-            !empleadoActualizado.getNombre().equals(empleadoExistente.getNombre())) {
-            empleadoExistente.setNombre(empleadoActualizado.getNombre().trim());
+        if (datos.getCargo() != null && !datos.getCargo().trim().isEmpty()) {
+            empleado.setCargo(datos.getCargo().trim());
         }
-
-        // Actualizar cargo
-        if (empleadoActualizado.getCargo() != null &&
-            !empleadoActualizado.getCargo().trim().isEmpty() &&
-            !empleadoActualizado.getCargo().equals(empleadoExistente.getCargo())) {
-            empleadoExistente.setCargo(empleadoActualizado.getCargo().trim());
+        if (datos.getNivel() != null && !datos.getNivel().trim().isEmpty()) {
+            empleado.setNivel(datos.getNivel().trim());
         }
-
-        // Actualizar nivel
-        if (empleadoActualizado.getNivel() != null &&
-            !empleadoActualizado.getNivel().trim().isEmpty() &&
-            !empleadoActualizado.getNivel().equals(empleadoExistente.getNivel())) {
-            empleadoExistente.setNivel(empleadoActualizado.getNivel());
+        if (datos.getDepartamentoId() != null) {
+            empleado.setDepartamento(departamentoRepository.findById(datos.getDepartamentoId())
+                    .orElseThrow(() -> new RuntimeException("Departamento no encontrado")));
         }
-
-        // Actualizar email
-        if (empleadoActualizado.getEmail() != null &&
-            !empleadoActualizado.getEmail().trim().isEmpty() &&
-            !empleadoActualizado.getEmail().trim().toLowerCase().equals(empleadoExistente.getEmail())) {
-
-            String emailLimpio = empleadoActualizado.getEmail().trim().toLowerCase();
-
+        if (datos.getEmail() != null && !datos.getEmail().trim().isEmpty()) {
+            String emailLimpio = datos.getEmail().trim().toLowerCase();
             if (!emailLimpio.contains("@") || !emailLimpio.contains(".")) {
                 throw new RuntimeException("Formato de email inválido");
             }
-
-            Optional<Empleado> empleadoConEmail = empleadoRepository.findFirstByEmail(emailLimpio);
-            if (empleadoConEmail.isPresent() && !empleadoConEmail.get().getId().equals(id)) {
+            Optional<Empleado> conEmail = empleadoRepository.findFirstByEmail(emailLimpio);
+            if (conEmail.isPresent() && !conEmail.get().getId().equals(id)) {
                 throw new RuntimeException("El email ya está registrado por otro empleado");
             }
-
-            empleadoExistente.setEmail(emailLimpio);
+            empleado.setEmail(emailLimpio);
+        }
+        if (datos.getDescripcion() != null) {
+            String d = datos.getDescripcion().trim();
+            empleado.setDescripcion(d.isEmpty() ? null : d);
+        }
+        if (datos.getHobby() != null) {
+            String h = datos.getHobby().trim();
+            empleado.setHobby(h.isEmpty() ? null : h);
+        }
+        if (datos.getCumpleanos() != null) {
+            empleado.setCumpleanos(datos.getCumpleanos());
+        }
+        if (datos.getIngreso() != null) {
+            empleado.setIngreso(datos.getIngreso());
+        }
+        if (datos.getFoto() != null && !datos.getFoto().trim().isEmpty() && !datos.getFoto().equals("img/perfil.png")) {
+            empleado.setFoto(datos.getFoto());
+        }
+        if (datos.getActivo() != null) {
+            empleado.setActivo(datos.getActivo());
         }
 
-        // Actualizar descripción
-        if (empleadoActualizado.getDescripcion() != null) {
-            String nuevaDesc = empleadoActualizado.getDescripcion().trim();
-            String actualDesc = empleadoExistente.getDescripcion() != null ? empleadoExistente.getDescripcion() : "";
-            if (!nuevaDesc.equals(actualDesc)) {
-                empleadoExistente.setDescripcion(nuevaDesc.isEmpty() ? null : nuevaDesc);
+        Usuario usuario = empleado.getUsuario();
+        if (usuario != null) {
+            if (datos.getUsuarioActivo() != null) {
+                usuario.setActivo(datos.getUsuarioActivo());
             }
-        }
-
-        // Actualizar hobby
-        if (empleadoActualizado.getHobby() != null) {
-            String nuevoHobby = empleadoActualizado.getHobby().trim();
-            String actualHobby = empleadoExistente.getHobby() != null ? empleadoExistente.getHobby() : "";
-            if (!nuevoHobby.equals(actualHobby)) {
-                empleadoExistente.setHobby(nuevoHobby.isEmpty() ? null : nuevoHobby);
-            }
-        }
-
-        // Actualizar fechas
-        if (empleadoActualizado.getCumpleanos() != null &&
-            !empleadoActualizado.getCumpleanos().equals(empleadoExistente.getCumpleanos())) {
-            empleadoExistente.setCumpleanos(empleadoActualizado.getCumpleanos());
-        }
-
-        if (empleadoActualizado.getIngreso() != null &&
-            !empleadoActualizado.getIngreso().equals(empleadoExistente.getIngreso())) {
-            empleadoExistente.setIngreso(empleadoActualizado.getIngreso());
-        }
-
-        // Actualizar foto (no actualizar si es valor por defecto)
-        if (empleadoActualizado.getFoto() != null &&
-            !empleadoActualizado.getFoto().trim().isEmpty() &&
-            !empleadoActualizado.getFoto().equals("img/perfil.png") &&
-            !empleadoActualizado.getFoto().equals(empleadoExistente.getFoto())) {
-            empleadoExistente.setFoto(empleadoActualizado.getFoto());
-        }
-
-        // Actualizar estados
-        if (empleadoActualizado.getActivo() != null &&
-            !empleadoActualizado.getActivo().equals(empleadoExistente.getActivo())) {
-            empleadoExistente.setActivo(empleadoActualizado.getActivo());
-        }
-
-        if (empleadoActualizado.getUsuarioActivo() != null &&
-            !empleadoActualizado.getUsuarioActivo().equals(empleadoExistente.getUsuarioActivo())) {
-            empleadoExistente.setUsuarioActivo(empleadoActualizado.getUsuarioActivo());
-        }
-
-        // Actualizar rol (no actualizar si es valor por defecto "tecnico")
-        if (empleadoActualizado.getRol() != null &&
-            !empleadoActualizado.getRol().trim().isEmpty() &&
-            !empleadoActualizado.getRol().equals("tecnico") &&
-            !empleadoActualizado.getRol().equals(empleadoExistente.getRol())) {
-            empleadoExistente.setRol(empleadoActualizado.getRol());
-        }
-
-        // Actualizar password (solo si no está encriptado)
-        if (empleadoActualizado.getPassword() != null &&
-            !empleadoActualizado.getPassword().trim().isEmpty()) {
-
-            String password = empleadoActualizado.getPassword().trim();
-
-            if (!password.startsWith("$2a$") &&
-                !password.startsWith("$2b$") &&
-                !password.startsWith("$2y$")) {
-
-                if (!passwordEncoder.matches(password, empleadoExistente.getPassword())) {
-                    empleadoExistente.setPassword(passwordEncoder.encode(password));
+            if (puedeGestionarAcceso) {
+                if (datos.getRol() != null && !datos.getRol().trim().isEmpty()
+                        && !datos.getRol().trim().equalsIgnoreCase(usuario.getRol())) {
+                    usuario.setTipoUsuario(usuarioService.tipoPersonal(datos.getRol()));
+                }
+                if (datos.getUsername() != null && !datos.getUsername().trim().isEmpty()
+                        && !datos.getUsername().trim().equals(usuario.getUsername())) {
+                    if (usuarioRepository.existsByUsername(datos.getUsername().trim())) {
+                        throw new RuntimeException("El usuario '" + datos.getUsername().trim() + "' ya existe");
+                    }
+                    usuario.setUsername(datos.getUsername().trim());
+                }
+                String password = datos.getPassword();
+                if (password != null && !password.trim().isEmpty() && !password.startsWith("$2")) {
+                    usuarioService.restablecerPassword(usuario, password.trim());
                 }
             }
+            usuarioRepository.save(usuario);
         }
-
-        return empleadoRepository.save(empleadoExistente);
+        return empleadoRepository.save(empleado);
     }
 
-    /** Guarda un empleado (nuevo o existente). */
-    public Empleado save(Empleado empleado) {
-        boolean esNuevo = empleado.getId() == null;
-
-        if (esNuevo) {
-            // Generar identificador
-            if (empleado.getIdentificador() == null || empleado.getIdentificador().trim().isEmpty()) {
-                empleado.setIdentificador(generarIdentificador(empleado.getNombre()));
-            }
-
-            // Asignar username por defecto
-            if (empleado.getUsername() == null || empleado.getUsername().trim().isEmpty()) {
-                empleado.setUsername(empleado.getDni());
-            }
-
-            // Generar email por defecto
-            if (empleado.getEmail() == null || empleado.getEmail().trim().isEmpty()) {
-                String emailGenerado = empleado.getUsername() + "@ngr.com.pe";
-                empleado.setEmail(emailGenerado);
-            }
-
-            // Asignar rol según nivel
-            if (empleado.getRol() == null || empleado.getRol().trim().isEmpty()) {
-                if (empleado.getNivel() != null) {
-                    switch (empleado.getNivel().toLowerCase()) {
-                        case "gerente":
-                        case "jefe":
-                            empleado.setRol("admin");
-                            break;
-                        case "supervisor":
-                            empleado.setRol("supervisor");
-                            break;
-                        default:
-                            empleado.setRol("tecnico");
-                    }
-                } else {
-                    empleado.setRol("tecnico");
-                }
-            }
-
-            // Encriptar password
-            if (empleado.getPassword() != null && !empleado.getPassword().trim().isEmpty()) {
-                String password = empleado.getPassword().trim();
-                if (!password.startsWith("$2a$") && !password.startsWith("$2b$") && !password.startsWith("$2y$")) {
-                    empleado.setPassword(passwordEncoder.encode(password));
-                }
-            } else {
-                empleado.setPassword(passwordEncoder.encode("password"));
-            }
-
-        } else {
-            return actualizarEmpleado(empleado.getId(), empleado);
+    /** Crea un empleado nuevo junto con su usuario de acceso (usuario y contraseña inicial: DNI). */
+    public Empleado crearEmpleado(EmpleadoRequestDTO datos) {
+        if (datos.getDni() == null || datos.getDni().trim().isEmpty()) {
+            throw new RuntimeException("El DNI es requerido");
+        }
+        if (datos.getNombre() == null || datos.getNombre().trim().isEmpty()) {
+            throw new RuntimeException("El nombre es requerido");
+        }
+        if (empleadoRepository.existsByDni(datos.getDni().trim())) {
+            throw new RuntimeException("Ya existe un empleado con ese DNI");
         }
 
+        Empleado empleado = new Empleado();
+        empleado.setDni(datos.getDni().trim());
+        empleado.setNombre(datos.getNombre().trim());
+        empleado.setCargo(datos.getCargo());
+        empleado.setNivel(datos.getNivel());
+        empleado.setDescripcion(datos.getDescripcion());
+        empleado.setHobby(datos.getHobby());
+        empleado.setCumpleanos(datos.getCumpleanos());
+        empleado.setIngreso(datos.getIngreso());
+        if (datos.getFoto() != null && !datos.getFoto().isBlank()) {
+            empleado.setFoto(datos.getFoto());
+        }
+        empleado.setActivo(datos.getActivo() == null || datos.getActivo());
+        if (datos.getDepartamentoId() != null) {
+            empleado.setDepartamento(departamentoRepository.findById(datos.getDepartamentoId())
+                    .orElseThrow(() -> new RuntimeException("Departamento no encontrado")));
+        }
+        String identificador = datos.getIdentificador();
+        if (identificador == null || identificador.trim().isEmpty()) {
+            identificador = generarIdentificador(empleado.getNombre());
+        }
+        if (empleadoRepository.findByIdentificador(identificador).isPresent()) {
+            identificador = identificador + "-" + empleado.getDni();
+        }
+        empleado.setIdentificador(identificador);
+        String email = datos.getEmail();
+        empleado.setEmail(email == null || email.isBlank() ? null : email.trim().toLowerCase());
+
+        empleado = empleadoRepository.save(empleado);
+        usuarioService.crearParaEmpleado(empleado, datos.getUsername(), datos.getPassword(), datos.getRol());
+
+        for (TipoSaldo tipo : TipoSaldo.values()) {
+            saldoRepository.save(new Saldo(empleado, tipo));
+        }
+        return empleado;
+    }
+
+    /** Activa/desactiva el empleado y/o su usuario. */
+    public Empleado cambiarEstado(Empleado empleado, Boolean activo, Boolean usuarioActivo) {
+        if (activo != null) {
+            empleado.setActivo(activo);
+        }
+        if (usuarioActivo != null && empleado.getUsuario() != null) {
+            empleado.getUsuario().setActivo(usuarioActivo);
+            usuarioRepository.save(empleado.getUsuario());
+        }
+        return empleadoRepository.save(empleado);
+    }
+
+    /** Guarda cambios simples del empleado (por ejemplo, la foto). */
+    public Empleado guardar(Empleado empleado) {
         return empleadoRepository.save(empleado);
     }
 
@@ -518,9 +414,9 @@ public class EmpleadoService {
         return empleadoRepository.existsByDni(dni);
     }
 
-    /** Verifica si existe un empleado con el username. */
+    /** Verifica si existe un usuario con el username. */
     public boolean existsByUsername(String username) {
-        return empleadoRepository.existsByUsername(username);
+        return usuarioRepository.existsByUsername(username);
     }
 
     /** Busca empleados por rol. */

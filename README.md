@@ -1,6 +1,6 @@
 # Control NGR - Backend
 
-Sistema de asistencia, horarios, solicitudes (vacaciones, compensación por feriado, descanso médico y licencias), encuestas y panel de administración.
+Sistema de asistencia con **marcación por reconocimiento facial**, horarios, solicitudes (vacaciones, compensación por feriado, descanso médico y licencias), encuestas y panel de administración.
 
 Spring Boot 3.5 · Java 21 · MySQL 8 · Flyway · Docker
 
@@ -14,13 +14,13 @@ Requisitos: Docker (Engine con el plugin `compose`, o Docker Desktop) y los **do
 
 ```
 carpeta/
-├── ControlNGR_Backend-v2/     ← aquí están docker-compose.yml y .env
-└── ControlNGR_Frontend-v2/
+├── ControlNGR_Backend-v3/     ← aquí están docker-compose.yml y .env
+└── ControlNGR_Frontend-v3/
 ```
 
 ```bash
-cd ControlNGR_Backend-v2
-cp .env.example .env        # completar DB_PASSWORD (usuario root de MySQL) y JWT_SECRET
+cd ControlNGR_Backend-v3
+cp .env.example .env        # completar DB_PASSWORD, JWT_SECRET y SERVIDOR_IP
 docker compose up -d --build
 ```
 
@@ -32,7 +32,7 @@ docker compose up -d --build
 > ```
 > Ya en funcionamiento, los tres contenedores usan unos 650 MB. La memoria de Java se ajusta con `BACKEND_JAVA_OPTS` en `.env` (por defecto `-Xms128m -Xmx512m -XX:+UseSerialGC`).
 
-- La web queda en `http://IP-DEL-SERVIDOR` (puerto `APP_PORT`, 80 por defecto).
+- La web queda en `https://IP-DEL-SERVIDOR` (puerto `HTTPS_PORT`, 443 por defecto). `http://` redirige a `https://`.
 - **Solo se publica la web (nginx).** El backend no es accesible desde fuera de Docker y MySQL solo escucha en `127.0.0.1:3307` del servidor, para mantenimiento.
 - **Las tablas y los datos iniciales se crean solos** la primera vez (Flyway, carpeta `src/main/resources/db/migration`).
 - Los datos se guardan en volúmenes de Docker (`db_data`, `img_data` y `evidencias_data`), así que no se pierden al reiniciar ni al actualizar.
@@ -59,6 +59,18 @@ powershell -ExecutionPolicy Bypass -File .\scripts\restaurar.ps1 -Respaldo D:\ru
 
 El `.zip` contiene la base completa (`controlngr.sql`), las fotos (`img/`) y las evidencias (`evidencias/`). Guárdelo en un lugar seguro; se recomienda generar uno periódicamente.
 
+### HTTPS y certificado (obligatorio para la cámara)
+
+Los navegadores solo permiten usar la cámara en páginas `https://`. Al iniciar, nginx genera automáticamente en la carpeta `certs/`:
+
+| Archivo | Qué es |
+|---|---|
+| `ca.crt` | Autoridad local **Control NGR CA**. Se importa **una vez en cada PC** (Windows: `certmgr.msc` → *Entidades de certificación raíz de confianza* → Importar) |
+| `servidor.crt` / `servidor.key` | Certificado del servidor para `localhost` y la IP de `SERVIDOR_IP` (se regenera solo si cambia la IP) |
+
+- Si TI entrega un certificado propio, copie `servidor.crt` y `servidor.key` en `certs/` (sin el archivo `.autogenerado`) y reinicie: se usa tal cual.
+- `certs/` contiene claves privadas: está en `.gitignore` y nunca se sube a git.
+
 ### Validación de red y Docker Desktop
 
 La marcación solo se permite desde los segmentos registrados, así que el backend necesita ver la **IP real** de cada equipo:
@@ -76,7 +88,7 @@ Antes el sistema usaba XAMPP (Apache + MariaDB/MySQL + phpMyAdmin). Ahora la bas
 2. **Detener XAMPP:** en el panel de XAMPP detener *Apache* y *MySQL* y desmarcarlos como servicio de Windows. Si Apache sigue activo ocupa el puerto 80 y la web no podrá iniciar (o cambie `APP_PORT` en `.env`, por ejemplo `APP_PORT=8081`). El MySQL de Docker usa el puerto `3307`, así que no choca con el de XAMPP.
 3. **Instalar Docker Desktop** (en Windows con WSL 2) y levantar el sistema:
    ```powershell
-   cd ControlNGR_Backend-v2
+   cd ControlNGR_Backend-v3
    copy .env.example .env      # completar DB_PASSWORD y JWT_SECRET
    docker compose up -d --build
    ```
@@ -161,6 +173,14 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 - La fecha y la hora las pone el servidor; los valores que envíe el cliente se ignoran.
 - Cada usuario solo puede marcar su propia asistencia.
 
+**Reconocimiento facial**
+- Toda marcación de entrada y salida exige el rostro (parámetro `MARCACION_FACIAL_OBLIGATORIA`, activo por defecto). Si se desactiva, solo quienes tienen rostro registrado marcan con cámara.
+- El navegador (face-api.js, modelos locales en `/models`) calcula un descriptor de 128 números; **la comparación la hace el servidor** contra las muestras registradas (distancia máxima `UMBRAL_FACIAL`, 0.5 por defecto). Los descriptores guardados nunca se envían al navegador.
+- Antes de capturar se comprueba que sea una persona real (parpadeo). No se guardan fotos.
+- Registro: cada colaborador registra su rostro **una sola vez** desde *Mi perfil*, con consentimiento (Ley 29733). Para volver a registrarlo, su jefatura o el admin lo restablecen desde *Empleados*, donde también pueden registrarlo en persona.
+- Se rechaza registrar un rostro que ya pertenece a otra cuenta y capturas que no son de la misma persona.
+- Cada marcación guarda el método (`facial`/`manual`) y la distancia obtenida.
+
 **Feriados laborados**
 - Si la entrada se marca en un feriado activo, se abonan automáticamente **2 días** de compensación (parámetro `DIAS_POR_FERIADO_LABORADO`), una sola vez por feriado.
 - Los días de compensación no vencen. El admin puede revertir un abono.
@@ -206,6 +226,17 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 | PUT | `/api/solicitudes/gestionar/{id}` | `{estado: "aprobado" \| "rechazado", comentarios}`. El aprobador es el usuario del token |
 | GET | `/api/solicitudes/{id}/historial` | Cambios de estado |
 | GET | `/api/solicitudes/{id}/evidencias/{evidenciaId}` | Descarga del archivo (solicitante, aprobadores, gerencia y admin) |
+
+### Reconocimiento facial
+| Método | Ruta | Nota |
+|---|---|---|
+| GET | `/api/face/mi-estado` | `{registrado, muestras, registradoEl, consentimientoEl, obligatorio, muestrasRequeridas}` |
+| POST | `/api/face/registrar` | `{descriptores: number[][], consentimiento: true}`. El propio colaborador, una sola vez |
+| POST | `/api/face/registrar/{empleadoId}` | Registro en persona por su jefatura o el admin |
+| DELETE | `/api/face/{empleadoId}` | Restablecer (jefatura o admin) |
+| GET | `/api/face/registrados` | Ids con rostro registrado (jefaturas y admin) |
+
+La marcación (`POST /api/asistencia/registrar`) recibe además `descriptor: number[]`. Los errores traen `codigoFacial`: `NO_REGISTRADO`, `FALTA_ROSTRO`, `NO_COINCIDE`, `DESCRIPTOR_INVALIDO`, `YA_REGISTRADO`, `CONSENTIMIENTO`, `MUESTRAS_INCONSISTENTES`, `ROSTRO_DE_OTRO`.
 
 ### Saldos
 | Método | Ruta | Nota |

@@ -10,6 +10,7 @@ import com.example.ControlNGR.dto.AsistenciaResponseDTO;
 import com.example.ControlNGR.dto.ReporteAsistenciaDTO;
 import com.example.ControlNGR.security.AccesoDenegadoException;
 import com.example.ControlNGR.security.FueraDeRedException;
+import com.example.ControlNGR.security.RostroException;
 import com.example.ControlNGR.security.UsuarioActual;
 import com.example.ControlNGR.service.AsistenciaService;
 import com.example.ControlNGR.service.RedService;
@@ -36,7 +37,7 @@ public class AsistenciaController {
         try {
             AsistenciaResponseDTO response = asistenciaService.registrarAsistencia(request, redService.ipCliente(http));
             return ResponseEntity.ok(response);
-        } catch (FueraDeRedException | AccesoDenegadoException e) {
+        } catch (FueraDeRedException | AccesoDenegadoException | RostroException e) {
             throw e;
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)

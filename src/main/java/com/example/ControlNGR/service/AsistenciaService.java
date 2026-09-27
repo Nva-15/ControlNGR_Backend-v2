@@ -29,6 +29,9 @@ import java.util.stream.Collectors;
 public class AsistenciaService {
     
     @Autowired
+    private FacialService facialService;
+
+    @Autowired
     private AsistenciaRepository asistenciaRepository;
     
     @Autowired
@@ -71,6 +74,8 @@ public class AsistenciaService {
             throw new AccesoDenegadoException("Su rol no registra asistencia");
         }
         redService.validarIp(ipCliente);
+        // Reconocimiento facial: el servidor compara el rostro capturado con el registrado
+        FacialService.Verificacion verificacion = facialService.verificar(empleado, request.getDescriptor());
 
         LocalDateTime ahora = LocalDateTime.now();
         LocalDate fecha = ahora.toLocalDate();
@@ -89,6 +94,8 @@ public class AsistenciaService {
             LocalTime horaEntradaProgramada = obtenerEntradaProgramada(empleado, fecha);
             asistencia.setHoraEntrada(hora);
             asistencia.setIpEntrada(ipCliente);
+            asistencia.setMetodoEntrada(verificacion.metodo());
+            asistencia.setDistanciaEntrada(verificacion.distancia());
 
             int tolerancia = parametroService.entero(ParametroService.TOLERANCIA_TARDANZA_MINUTOS, 5);
             if (hora.isAfter(horaEntradaProgramada.plusMinutes(tolerancia))) {
@@ -114,6 +121,8 @@ public class AsistenciaService {
             }
             asistencia.setHoraSalida(hora);
             asistencia.setIpSalida(ipCliente);
+            asistencia.setMetodoSalida(verificacion.metodo());
+            asistencia.setDistanciaSalida(verificacion.distancia());
             asistencia.setSalidaAutomatica(false);
             agregarObservacion(asistencia, request.getObservaciones());
             asistencia = asistenciaRepository.save(asistencia);

@@ -1,4 +1,4 @@
-# Guía de instalación de Control NGR en un equipo de la empresa
+# Guía de instalación de Control NGR v3 en un equipo de la empresa
 
 Guía paso a paso para instalar el sistema en el equipo (servidor) donde quedará funcionando para todos.
 Solo se necesita saber abrir una terminal y copiar comandos.
@@ -18,8 +18,9 @@ Solo se necesita saber abrir una terminal y copiar comandos.
 - 2 núcleos de CPU, 4 GB de RAM libres para Docker y 20 GB de disco libre.
 - **IP fija** dentro de la red de la oficina (pedirla al área de redes). Ejemplo: `10.92.104.20`.
 - Acceso a internet durante la instalación (para descargar Docker y los programas).
-- Acceso a los dos repositorios de GitHub (`ControlNGR_Backend-v2` y `ControlNGR_Frontend-v2`).
+- Acceso a los dos repositorios de GitHub (`ControlNGR_Backend-v3` y `ControlNGR_Frontend-v3`).
 - Que el equipo quede encendido siempre (es el servidor).
+- Las PCs donde se marca asistencia necesitan **cámara web** (la marcación es con reconocimiento facial).
 
 **Qué debe tener a mano:**
 - El archivo **`.env`** (contraseñas del sistema). No está en GitHub; cópielo por USB o créelo en el paso 3.
@@ -51,20 +52,20 @@ docker compose version
 sudo mkdir -p /opt/controlngr
 sudo chown $USER /opt/controlngr
 cd /opt/controlngr
-git clone https://github.com/Nva-15/ControlNGR_Backend-v2.git
-git clone https://github.com/Nva-15/ControlNGR_Frontend-v2.git
+git clone https://github.com/Nva-15/ControlNGR_Backend-v3.git
+git clone https://github.com/Nva-15/ControlNGR_Frontend-v3.git
 ```
 
 GitHub pedirá usuario y un *token* de acceso (no la contraseña normal).
 
 ### A3. Crear el archivo `.env`
 
-Si trae el `.env` de otro equipo, cópielo a `/opt/controlngr/ControlNGR_Backend-v2/.env` y pase al paso A4.
+Si trae el `.env` de otro equipo, cópielo a `/opt/controlngr/ControlNGR_Backend-v3/.env` y pase al paso A4.
 
 Si no, créelo:
 
 ```bash
-cd /opt/controlngr/ControlNGR_Backend-v2
+cd /opt/controlngr/ControlNGR_Backend-v3
 cp .env.example .env
 openssl rand -hex 48        # copie el texto que aparece: es su JWT_SECRET
 nano .env
@@ -75,7 +76,10 @@ Complete como mínimo estas líneas (sin comillas), guarde con `Ctrl+O`, `Enter`
 ```
 DB_PASSWORD=una_contraseña_segura
 JWT_SECRET=el_texto_largo_que_generó
+SERVIDOR_IP=10.92.104.20
 ```
+
+`SERVIDOR_IP` es la IP fija del servidor: se usa para el certificado HTTPS.
 
 Proteja el archivo para que solo su usuario lo pueda leer:
 
@@ -86,7 +90,7 @@ chmod 600 .env
 ### A4. Encender el sistema
 
 ```bash
-cd /opt/controlngr/ControlNGR_Backend-v2
+cd /opt/controlngr/ControlNGR_Backend-v3
 docker compose up -d --build
 ```
 
@@ -98,10 +102,11 @@ docker compose ps
 
 Deben aparecer `controlngr-db` (healthy), `controlngr-backend` y `controlngr-frontend`.
 
-### A5. Abrir el puerto de la web (si el servidor tiene firewall)
+### A5. Abrir los puertos de la web (si el servidor tiene firewall)
 
 ```bash
 sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
 ```
 
 Continúe en el **paso 5 (común)**.
@@ -134,18 +139,18 @@ git --version
 ```powershell
 mkdir C:\ControlNGR
 cd C:\ControlNGR
-git clone https://github.com/Nva-15/ControlNGR_Backend-v2.git
-git clone https://github.com/Nva-15/ControlNGR_Frontend-v2.git
+git clone https://github.com/Nva-15/ControlNGR_Backend-v3.git
+git clone https://github.com/Nva-15/ControlNGR_Frontend-v3.git
 ```
 
 ### B3. Crear el archivo `.env`
 
-Si trae el `.env` de otro equipo, cópielo a `C:\ControlNGR\ControlNGR_Backend-v2\.env` y pase al paso B4.
+Si trae el `.env` de otro equipo, cópielo a `C:\ControlNGR\ControlNGR_Backend-v3\.env` y pase al paso B4.
 
 Si no:
 
 ```powershell
-cd C:\ControlNGR\ControlNGR_Backend-v2
+cd C:\ControlNGR\ControlNGR_Backend-v3
 copy .env.example .env
 $b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); ($b | % { $_.ToString('x2') }) -join ''
 notepad .env
@@ -156,7 +161,10 @@ El comando largo muestra un texto: es su `JWT_SECRET`. Complete (sin comillas) y
 ```
 DB_PASSWORD=una_contraseña_segura
 JWT_SECRET=el_texto_largo_que_generó
+SERVIDOR_IP=10.92.104.20
 ```
+
+`SERVIDOR_IP` es la IP fija del servidor: se usa para el certificado HTTPS.
 
 Compruebe que el archivo se llame `.env` y no `.env.txt`:
 
@@ -169,7 +177,7 @@ dir -Force .env*
 Con poca memoria es mejor construir una parte a la vez:
 
 ```powershell
-cd C:\ControlNGR\ControlNGR_Backend-v2
+cd C:\ControlNGR\ControlNGR_Backend-v3
 docker compose --progress plain build frontend
 docker compose --progress plain build backend
 docker compose up -d
@@ -178,19 +186,33 @@ docker compose ps
 
 Deben aparecer `controlngr-db` (healthy), `controlngr-backend` y `controlngr-frontend`.
 
-### B5. Abrir el puerto de la web en el firewall de Windows
+### B5. Abrir los puertos de la web en el firewall de Windows
 
 En **PowerShell como administrador**:
 
 ```powershell
-New-NetFirewallRule -DisplayName "Control NGR (web)" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
+New-NetFirewallRule -DisplayName "Control NGR (web)" -Direction Inbound -Protocol TCP -LocalPort 80,443 -Action Allow
 ```
 
 ---
 
+## 4.5 Certificado HTTPS en cada PC (una sola vez)
+
+La web funciona con `https://` (el navegador exige conexión segura para usar la cámara). Al encender el sistema se crea la carpeta `certs` con el archivo **`ca.crt`** (autoridad "Control NGR CA").
+
+En **cada PC** que usará el sistema (incluido el servidor):
+
+1. Copie `ca.crt` (de `ControlNGR_Backend-v3\certs\`) a la PC, por USB o carpeta compartida.
+2. Doble clic en `ca.crt` → **Instalar certificado** → *Equipo local* → *Colocar todos los certificados en el siguiente almacén* → **Entidades de certificación raíz de confianza** → Finalizar.
+3. Cierre y vuelva a abrir el navegador.
+
+Con muchas PCs, TI puede distribuir `ca.crt` por directiva de grupo (GPO). Si falta este paso, el navegador mostrará "La conexión no es privada".
+
+> Si cambia la IP del servidor, actualice `SERVIDOR_IP` en `.env` y ejecute `docker compose up -d`: el certificado del servidor se renueva solo y **no** hace falta volver a importar `ca.crt`.
+
 ## 5. Primer ingreso (ambas opciones)
 
-1. En el mismo servidor abrir el navegador en `http://localhost`.
+1. En el mismo servidor abrir el navegador en `https://localhost`.
 2. Ingresar con usuario **`admin`** y contraseña **`$.4dmin2026`**. El sistema obligará a cambiarla: use una contraseña segura y guárdela.
 3. En el **Panel maestro** revisar:
    - **Segmentos de red**: `10.92.104.%` (oficina) y `192.168.113.%` (VPN).
@@ -201,21 +223,34 @@ New-NetFirewallRule -DisplayName "Control NGR (web)" -Direction Inbound -Protoco
 
 ## 6. Prueba desde otra PC de la oficina (muy importante)
 
-1. Desde otra PC abrir `http://IP-DEL-SERVIDOR` (ejemplo: `http://10.92.104.20`).
+1. Desde otra PC abrir `https://IP-DEL-SERVIDOR` (ejemplo: `https://10.92.104.20`).
 2. Ingresar como admin → **Segmentos de red**. La pantalla muestra **con qué IP ve el servidor a esa PC**.
    - Si muestra la IP real de la PC (por ejemplo `10.92.104.57`): ✅ todo bien.
    - Si muestra una IP como `172.x.x.x`: ❌ Docker está ocultando las IPs (pasa en Windows) y nadie podrá marcar. Solución: instalar en un servidor Linux (Opción A).
 3. Ingresar con un colaborador y comprobar que el botón **Marcar entrada** esté habilitado dentro de la red y deshabilitado fuera de ella.
 
-Comparta con el personal la dirección `http://IP-DEL-SERVIDOR`.
+Comparta con el personal la dirección `https://IP-DEL-SERVIDOR`.
+
+## 6.5 Registro de rostros
+
+La marcación de asistencia es con **reconocimiento facial**. Antes de su primera marcación, cada colaborador:
+
+1. Ingresa al sistema → **Mi perfil** → sección *Reconocimiento facial*.
+2. Marca la casilla de **consentimiento** y pulsa **Registrar mi rostro**.
+3. Mira a la cámara con buena iluminación y parpadea con normalidad; se toman 5 capturas en unos segundos.
+
+Luego, en **Inicio**, los botones *Marcar entrada / salida* abren la cámara y verifican su identidad.
+
+- Cada persona registra su rostro **una sola vez**. Para repetirlo (cambio de apariencia, mala captura), su supervisor, jefatura o el admin lo **restablece** en **Empleados** (botón con ícono de persona tachada). Ahí también pueden registrarlo en persona.
+- En el panel admin → **Parámetros** se puede ajustar `UMBRAL_FACIAL` (0.4 más estricto, 0.6 más permisivo) o desactivar `MARCACION_FACIAL_OBLIGATORIA`.
 
 ---
 
 ## 7. Uso diario
 
-Todos los comandos se ejecutan **dentro de la carpeta `ControlNGR_Backend-v2`**:
-- Linux: `cd /opt/controlngr/ControlNGR_Backend-v2`
-- Windows: `cd C:\ControlNGR\ControlNGR_Backend-v2`
+Todos los comandos se ejecutan **dentro de la carpeta `ControlNGR_Backend-v3`**:
+- Linux: `cd /opt/controlngr/ControlNGR_Backend-v3`
+- Windows: `cd C:\ControlNGR\ControlNGR_Backend-v3`
 
 | Quiero… | Comando |
 |---|---|
@@ -261,7 +296,7 @@ crontab -e
 Agregue al final esta línea y guarde:
 
 ```
-0 23 * * * cd /opt/controlngr/ControlNGR_Backend-v2 && sh scripts/respaldar.sh >> respaldos/respaldo.log 2>&1
+0 23 * * * cd /opt/controlngr/ControlNGR_Backend-v3 && sh scripts/respaldar.sh >> respaldos/respaldo.log 2>&1
 ```
 
 ---
@@ -270,18 +305,22 @@ Agregue al final esta línea y guarde:
 
 | Problema | Solución |
 |---|---|
-| `no configuration file provided` | No está en la carpeta correcta. Entre a `ControlNGR_Backend-v2` |
-| `port is already allocated` (puerto 80 ocupado) | Otro programa usa el puerto 80 (Apache/XAMPP, IIS). Deténgalo, o ponga `APP_PORT=8081` en `.env` y entre por `http://IP:8081` |
+| `no configuration file provided` | No está en la carpeta correcta. Entre a `ControlNGR_Backend-v3` |
+| `port is already allocated` (puerto 80 o 443 ocupado) | Otro programa usa el puerto (Apache/XAMPP, IIS). Deténgalo, o cambie `APP_PORT`/`HTTPS_PORT` en `.env` (ej. `HTTPS_PORT=8443`) y entre por `https://IP:8443` |
 | `required variable DB_PASSWORD is missing` | Falta el archivo `.env` o la línea `DB_PASSWORD` |
 | La construcción se queda detenida o falla con `rpc error ... EOF` | Falta memoria. En Windows asigne más memoria a Docker o construya una parte a la vez (paso B4) |
 | La página no carga (`ERR_EMPTY_RESPONSE`) | Ejecute `docker compose down` y luego `docker compose up -d` (sin `-v`) |
 | Todos aparecen "fuera de red" | Ver paso 6. Si la IP es `172.x.x.x`, el servidor debe ser Linux |
 | Cambié `DB_PASSWORD` y ahora el backend no inicia | La base guarda la contraseña de la primera instalación. Vuelva a poner la contraseña original en `.env` |
+| "La conexión no es privada" / no enciende la cámara | Falta importar `ca.crt` en esa PC (paso 4.5), o se entró por `http://` o por una IP distinta a `SERVIDOR_IP` |
+| "Permiso de cámara denegado" | Clic en el candado de la barra de direcciones → Cámara → Permitir, y recargar |
+| "El rostro no coincide" | Mejorar la iluminación y mirar de frente. Si persiste, restablecer el rostro en Empleados y registrarlo de nuevo |
+| "Este rostro ya está registrado para otro colaborador" | El mismo rostro no puede estar en dos cuentas. Revise en Empleados a quién pertenece |
 | Olvidé la contraseña de admin | Ver abajo "Restablecer la contraseña de admin" |
 
 ### Restablecer la contraseña de admin
 
-Vuelve a dejarla en `$.4dmin2026` y el sistema pedirá cambiarla al ingresar. Desde la carpeta `ControlNGR_Backend-v2` (igual en Linux y Windows):
+Vuelve a dejarla en `$.4dmin2026` y el sistema pedirá cambiarla al ingresar. Desde la carpeta `ControlNGR_Backend-v3` (igual en Linux y Windows):
 
 ```
 docker cp scripts/restablecer-admin.sql controlngr-db:/tmp/restablecer-admin.sql

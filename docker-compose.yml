@@ -5,8 +5,8 @@
 # Requiere:
 #   - Un archivo .env junto a este archivo (copiar de .env.example y completar).
 #   - El repositorio del frontend clonado junto a este:
-#       ./ControlNGR_Backend-v2
-#       ./ControlNGR_Frontend-v2     (o indique otra ruta en FRONTEND_DIR)
+#       ./ControlNGR_Backend-v3
+#       ./ControlNGR_Frontend-v3     (o indique otra ruta en FRONTEND_DIR)
 #
 # Solo el frontend (nginx) queda expuesto. El backend y MySQL no se publican fuera
 # de Docker; MySQL solo escucha en 127.0.0.1 del servidor para mantenimiento.
@@ -65,13 +65,22 @@ services:
     networks: [interna]
 
   frontend:
-    build: ${FRONTEND_DIR:-../ControlNGR_Frontend-v2}
+    build: ${FRONTEND_DIR:-../ControlNGR_Frontend-v3}
     container_name: controlngr-frontend
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      # IP fija del servidor: se incluye en el certificado HTTPS generado automaticamente
+      SERVIDOR_IP: ${SERVIDOR_IP:-}
+      SERVIDOR_NOMBRE: ${SERVIDOR_NOMBRE:-}
+      HTTPS_PORT: ${HTTPS_PORT:-443}
+    volumes:
+      # Certificado HTTPS (se genera solo; ca.crt se importa en cada PC). Nunca se sube a git
+      - ./certs:/etc/nginx/certs
     ports:
       - "${APP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     networks: [interna]
 
 networks:

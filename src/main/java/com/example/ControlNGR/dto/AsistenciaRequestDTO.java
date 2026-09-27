@@ -9,6 +9,8 @@ public class AsistenciaRequestDTO {
     private LocalDate fecha;
     private LocalTime hora;
     private String observaciones;
+    /** Descriptor facial (128 valores) capturado al marcar. El servidor lo compara con el registrado. */
+    private double[] descriptor;
     
     // Getters y Setters
     public Integer getEmpleadoId() { return empleadoId; }
@@ -25,4 +27,7 @@ public class AsistenciaRequestDTO {
     
     public String getObservaciones() { return observaciones; }
     public void setObservaciones(String observaciones) { this.observaciones = observaciones; }
+
+    public double[] getDescriptor() { return descriptor; }
+    public void setDescriptor(double[] descriptor) { this.descriptor = descriptor; }
 }

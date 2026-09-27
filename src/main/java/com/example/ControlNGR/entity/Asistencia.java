@@ -38,6 +38,20 @@ public class Asistencia {
 
     @Column(name = "ip_salida", length = 45)
     private String ipSalida;
+
+    /** Como se verifico cada marcacion: facial o manual. */
+    @Column(name = "metodo_entrada", length = 20)
+    private String metodoEntrada;
+
+    @Column(name = "metodo_salida", length = 20)
+    private String metodoSalida;
+
+    /** Distancia facial obtenida al marcar (menor = mas parecido). */
+    @Column(name = "distancia_entrada", precision = 6, scale = 4)
+    private java.math.BigDecimal distanciaEntrada;
+
+    @Column(name = "distancia_salida", precision = 6, scale = 4)
+    private java.math.BigDecimal distanciaSalida;
     
     // Constructores
     public Asistencia() {}
@@ -117,4 +131,16 @@ public class Asistencia {
 
 	public String getIpSalida() { return ipSalida; }
 	public void setIpSalida(String ipSalida) { this.ipSalida = ipSalida; }
+
+	public String getMetodoEntrada() { return metodoEntrada; }
+	public void setMetodoEntrada(String metodoEntrada) { this.metodoEntrada = metodoEntrada; }
+
+	public String getMetodoSalida() { return metodoSalida; }
+	public void setMetodoSalida(String metodoSalida) { this.metodoSalida = metodoSalida; }
+
+	public java.math.BigDecimal getDistanciaEntrada() { return distanciaEntrada; }
+	public void setDistanciaEntrada(java.math.BigDecimal distanciaEntrada) { this.distanciaEntrada = distanciaEntrada; }
+
+	public java.math.BigDecimal getDistanciaSalida() { return distanciaSalida; }
+	public void setDistanciaSalida(java.math.BigDecimal distanciaSalida) { this.distanciaSalida = distanciaSalida; }
 }

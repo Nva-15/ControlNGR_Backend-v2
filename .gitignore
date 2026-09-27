@@ -48,3 +48,6 @@ data/
 # Respaldos (contienen datos personales)
 respaldos/
 *.sql.gz
+
+# Certificados HTTPS (claves privadas)
+certs/

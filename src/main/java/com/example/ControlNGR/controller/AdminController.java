@@ -52,6 +52,17 @@ public class AdminController {
         return ResponseEntity.ok(parametroService.actualizar(clave, body.get("valor")));
     }
 
+    // ---------- Personal incluido en el reporte de asistencia ----------
+    @GetMapping("/reporte-asistencia/personal")
+    public ResponseEntity<?> personalReporteAsistencia() {
+        return ResponseEntity.ok(adminService.personalReporteAsistencia());
+    }
+
+    @PutMapping("/reporte-asistencia/personal")
+    public ResponseEntity<?> guardarPersonalReporteAsistencia(@RequestBody Map<String, List<Integer>> body) {
+        return ResponseEntity.ok(adminService.guardarPersonalReporteAsistencia(body.get("incluidos")));
+    }
+
     /** IP con la que el servidor ve al equipo del administrador (para configurar segmentos). */
     @GetMapping("/mi-ip")
     public ResponseEntity<?> miIp(jakarta.servlet.http.HttpServletRequest request) {

@@ -73,6 +73,9 @@ public class UsuarioService {
         return usuarioRepository.save(usuario);
     }
 
+    /** Contraseña de todo empleado nuevo; se debe cambiar en el primer ingreso. */
+    public static final String CLAVE_INICIAL = "Soporte26$";
+
     /** Crea el usuario de un empleado nuevo (username por defecto: DNI). */
     @Transactional
     public Usuario crearParaEmpleado(Empleado empleado, String username, String password, String rol) {
@@ -83,7 +86,7 @@ public class UsuarioService {
         Usuario u = new Usuario();
         u.setEmpleado(empleado);
         u.setUsername(user);
-        String clave = (password == null || password.isBlank()) ? empleado.getDni() : password;
+        String clave = (password == null || password.isBlank()) ? CLAVE_INICIAL : password;
         u.setPassword(passwordEncoder.encode(clave));
         u.setTipoUsuario(tipoPersonal(rol));
         u.setActivo(true);

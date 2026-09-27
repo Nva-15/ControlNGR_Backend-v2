@@ -91,6 +91,12 @@ public class ParametroService {
             }
             default -> { }
         }
+        if (TOLERANCIA_TARDANZA_MINUTOS.equals(clave)) {
+            BigDecimal minutos = new BigDecimal(valor);
+            if (minutos.stripTrailingZeros().scale() > 0 || minutos.compareTo(BigDecimal.valueOf(120)) > 0) {
+                throw new IllegalArgumentException("La tolerancia debe ser un número entero de minutos entre 0 y 120");
+            }
+        }
         p.setValor(valor);
         return repository.save(p);
     }

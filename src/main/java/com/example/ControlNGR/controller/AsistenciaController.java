@@ -48,6 +48,18 @@ public class AsistenciaController {
         }
     }
     
+    /** Breve justificacion que el empleado agrega despues de marcar (no retrasa la marcacion). */
+    @PutMapping("/{id}/mensaje")
+    public ResponseEntity<?> registrarMensaje(@PathVariable("id") Integer id, @RequestBody Map<String, String> body) {
+        try {
+            return ResponseEntity.ok(asistenciaService.registrarMensaje(id, body.get("tipo"), body.get("mensaje")));
+        } catch (AccesoDenegadoException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
+        }
+    }
+
     /** Indica si el equipo actual esta dentro de la red permitida (para mostrarlo antes de marcar). */
     @GetMapping("/verificar-red")
     public ResponseEntity<?> verificarRed(HttpServletRequest http) {

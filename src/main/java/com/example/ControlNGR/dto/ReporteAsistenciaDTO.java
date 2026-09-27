@@ -23,6 +23,8 @@ public class ReporteAsistenciaDTO {
     private String turno;
     private String observaciones;
     private Boolean salidaAutomatica;
+    private String mensajeEntrada;
+    private String mensajeSalida;
 
     public ReporteAsistenciaDTO() {}
 
@@ -86,4 +88,8 @@ public class ReporteAsistenciaDTO {
 
     public Boolean getSalidaAutomatica() { return salidaAutomatica; }
     public void setSalidaAutomatica(Boolean salidaAutomatica) { this.salidaAutomatica = salidaAutomatica; }
+    public String getMensajeEntrada() { return mensajeEntrada; }
+    public void setMensajeEntrada(String mensajeEntrada) { this.mensajeEntrada = mensajeEntrada; }
+    public String getMensajeSalida() { return mensajeSalida; }
+    public void setMensajeSalida(String mensajeSalida) { this.mensajeSalida = mensajeSalida; }
 }

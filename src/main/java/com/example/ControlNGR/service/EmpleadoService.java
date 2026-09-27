@@ -328,6 +328,10 @@ public class EmpleadoService {
             if (datos.getUsuarioActivo() != null) {
                 usuario.setActivo(datos.getUsuarioActivo());
             }
+            // Un empleado inactivo nunca puede ingresar al sistema
+            if (!Boolean.TRUE.equals(empleado.getActivo())) {
+                usuario.setActivo(false);
+            }
             if (puedeGestionarAcceso) {
                 if (datos.getRol() != null && !datos.getRol().trim().isEmpty()
                         && !datos.getRol().trim().equalsIgnoreCase(usuario.getRol())) {
@@ -404,9 +408,16 @@ public class EmpleadoService {
         if (activo != null) {
             empleado.setActivo(activo);
         }
-        if (usuarioActivo != null && empleado.getUsuario() != null) {
-            empleado.getUsuario().setActivo(usuarioActivo);
-            usuarioRepository.save(empleado.getUsuario());
+        Usuario usuario = empleado.getUsuario();
+        if (usuario != null) {
+            if (usuarioActivo != null) {
+                usuario.setActivo(usuarioActivo);
+            }
+            // Un empleado inactivo nunca puede ingresar al sistema
+            if (!Boolean.TRUE.equals(empleado.getActivo())) {
+                usuario.setActivo(false);
+            }
+            usuarioRepository.save(usuario);
         }
         return empleadoRepository.save(empleado);
     }

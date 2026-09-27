@@ -83,7 +83,14 @@ public final class Roles {
     /** Si el rol editor puede asignar el rol indicado a un empleado (crear o cambiar rol). */
     public static boolean puedeAsignarRol(String rolEditor, String rolNuevo) {
         if (esAdmin(rolEditor)) return true;
-        return esGerencia(rolEditor) && rango(rolNuevo) < rango(rolEditor);
+        if (esGerencia(rolEditor)) return rango(rolNuevo) < rango(rolEditor);
+        // El supervisor registra personal operativo (tecnico, hd, noc, bo)
+        return SUPERVISOR.equalsIgnoreCase(rolEditor) && rolNuevo != null && OPERATIVOS.contains(rolNuevo.toLowerCase());
+    }
+
+    /** Quienes pueden registrar empleados nuevos: admin, gerencia y supervisores. */
+    public static boolean puedeCrearEmpleados(String rol) {
+        return esAdmin(rol) || esGerencia(rol) || SUPERVISOR.equalsIgnoreCase(rol);
     }
 
     private static String[] concat(String[] base, String extra) {

@@ -19,6 +19,10 @@ public interface RostroEmpleadoRepository extends JpaRepository<RostroEmpleado, 
     @Query("SELECT r FROM RostroEmpleado r JOIN FETCH r.empleado e WHERE e.id <> :empleadoId")
     List<RostroEmpleado> findDeOtrosEmpleados(@Param("empleadoId") Integer empleadoId);
 
+    /** Todas las muestras con su empleado (para las pruebas del panel admin). */
+    @Query("SELECT r FROM RostroEmpleado r JOIN FETCH r.empleado")
+    List<RostroEmpleado> findTodasConEmpleado();
+
     @Query("SELECT DISTINCT r.empleado.id FROM RostroEmpleado r")
     List<Integer> findEmpleadosRegistrados();
 

@@ -74,6 +74,37 @@ public class FacialController {
         return ResponseEntity.ok(facialService.empleadosRegistrados());
     }
 
+    // ==================== Pruebas (solo el administrador) ====================
+
+    /** Resumen de rostros registrados de quienes marcan asistencia. */
+    @GetMapping("/admin/resumen")
+    public ResponseEntity<?> resumen() {
+        soloAdmin();
+        return ResponseEntity.ok(facialService.resumen());
+    }
+
+    public record PruebaMarcacionRequest(double[] descriptor, Integer empleadoId) {}
+
+    /** Prueba de marcacion: a quien reconoce el sistema. No registra asistencia. */
+    @PostMapping("/admin/probar-marcacion")
+    public ResponseEntity<?> probarMarcacion(@RequestBody PruebaMarcacionRequest req) {
+        soloAdmin();
+        return ResponseEntity.ok(facialService.probarMarcacion(req.descriptor(), req.empleadoId()));
+    }
+
+    /** Prueba de registro: calidad de las capturas y si el rostro ya pertenece a alguien. No guarda nada. */
+    @PostMapping("/admin/probar-registro")
+    public ResponseEntity<?> probarRegistro(@RequestBody RegistroRequest req) {
+        soloAdmin();
+        return ResponseEntity.ok(facialService.probarRegistro(req.descriptores()));
+    }
+
+    private void soloAdmin() {
+        if (!Roles.esAdmin(usuarioActual.requerido().getRol())) {
+            throw new AccesoDenegadoException("Solo el administrador puede usar las pruebas de reconocimiento facial");
+        }
+    }
+
     /** Restablece (borra) el rostro para que el empleado lo registre de nuevo. */
     @DeleteMapping("/{empleadoId}")
     public ResponseEntity<?> restablecer(@PathVariable("empleadoId") Integer empleadoId) {

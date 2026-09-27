@@ -242,6 +242,7 @@ La marcación de asistencia es con **reconocimiento facial**. Antes de su primer
 Luego, en **Inicio**, los botones *Marcar entrada / salida* abren la cámara y verifican su identidad.
 
 - Cada persona registra su rostro **una sola vez**. Para repetirlo (cambio de apariencia, mala captura), su supervisor, jefatura o el admin lo **restablece** en **Empleados** (botón con ícono de persona tachada). Ahí también pueden registrarlo en persona.
+- En el panel admin → **Reconocimiento facial** puede ver quién ya registró su rostro y **probar** la marcación o un registro con la cámara, sin registrar asistencia ni guardar nada. Úselo con varias personas para calibrar el umbral.
 - En el panel admin → **Parámetros** se puede ajustar `UMBRAL_FACIAL` (0.4 más estricto, 0.6 más permisivo) o desactivar `MARCACION_FACIAL_OBLIGATORIA`.
 
 ---

@@ -15,10 +15,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Reconocimiento facial. El navegador calcula el descriptor (128 valores, face-api.js) y el servidor
@@ -189,6 +192,148 @@ public class FacialService {
                     "El rostro no coincide con el registrado. Intente de nuevo con buena iluminación", 403);
         }
         return new Verificacion("facial", BigDecimal.valueOf(mejor).setScale(4, java.math.RoundingMode.HALF_UP));
+    }
+
+    // ------------------------------------------------------------------ pruebas (panel admin)
+
+    /** Resumen para el panel admin: quienes marcan asistencia y si tienen rostro registrado. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> resumen() {
+        Map<Integer, List<RostroEmpleado>> porEmpleado = new HashMap<>();
+        for (RostroEmpleado r : rostroRepository.findTodasConEmpleado()) {
+            porEmpleado.computeIfAbsent(r.getEmpleado().getId(), k -> new ArrayList<>()).add(r);
+        }
+        List<Map<String, Object>> empleados = new ArrayList<>();
+        for (Empleado e : empleadoRepository.findByActivo(true)) {
+            if (e.getUsuario() == null || !Boolean.TRUE.equals(e.getUsuario().getTipoUsuario().getMarcaAsistencia())) {
+                continue;
+            }
+            List<RostroEmpleado> muestras = porEmpleado.getOrDefault(e.getId(), List.of());
+            Map<String, Object> fila = datosEmpleado(e);
+            fila.put("registrado", !muestras.isEmpty());
+            fila.put("muestras", muestras.size());
+            fila.put("registradoEl", muestras.stream().map(RostroEmpleado::getCreatedAt)
+                    .min(Comparator.naturalOrder()).orElse(null));
+            empleados.add(fila);
+        }
+        empleados.sort(Comparator.comparing(f -> String.valueOf(f.get("nombre"))));
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("total", empleados.size());
+        r.put("registrados", empleados.stream().filter(f -> Boolean.TRUE.equals(f.get("registrado"))).count());
+        r.put("umbral", umbral());
+        r.put("obligatorio", obligatorio());
+        r.put("muestrasRequeridas", muestrasRequeridas());
+        r.put("empleados", empleados);
+        return r;
+    }
+
+    /**
+     * Prueba de marcacion sin registrar asistencia: compara el rostro capturado con todos los registrados
+     * y, si se indica, con un empleado en particular.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> probarMarcacion(double[] descriptor, Integer empleadoId) {
+        if (descriptor == null) {
+            throw new RostroException("FALTA_ROSTRO", "No se recibió la captura del rostro", 400);
+        }
+        validarDescriptor(descriptor);
+        double umbral = umbral();
+
+        Map<Integer, Double> mejorPorEmpleado = new HashMap<>();
+        Map<Integer, Empleado> empleados = new HashMap<>();
+        for (RostroEmpleado r : rostroRepository.findTodasConEmpleado()) {
+            Integer id = r.getEmpleado().getId();
+            empleados.put(id, r.getEmpleado());
+            mejorPorEmpleado.merge(id, distancia(descriptor, leer(r)), Math::min);
+        }
+        List<Map<String, Object>> candidatos = mejorPorEmpleado.entrySet().stream()
+                .sorted(Map.Entry.comparingByValue())
+                .limit(5)
+                .map(en -> resultado(empleados.get(en.getKey()), en.getValue(), umbral))
+                .toList();
+
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("umbral", umbral);
+        r.put("registrados", mejorPorEmpleado.size());
+        r.put("candidatos", candidatos);
+        Map<String, Object> reconocido = candidatos.isEmpty() || !Boolean.TRUE.equals(candidatos.get(0).get("coincide"))
+                ? null : candidatos.get(0);
+        r.put("reconocido", reconocido);
+        if (empleadoId != null) {
+            Empleado objetivo = empleadoRepository.findById(empleadoId)
+                    .orElseThrow(() -> new IllegalArgumentException("Empleado no encontrado"));
+            Double d = mejorPorEmpleado.get(empleadoId);
+            Map<String, Object> o = d == null ? datosEmpleado(objetivo) : resultado(objetivo, d, umbral);
+            o.put("registrado", d != null);
+            r.put("objetivo", o);
+        }
+        return r;
+    }
+
+    /**
+     * Prueba de registro sin guardar: revisa que las capturas sean consistentes y que el rostro
+     * no pertenezca ya a otro colaborador.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> probarRegistro(List<double[]> descriptores) {
+        if (descriptores == null || descriptores.size() < MIN_MUESTRAS || descriptores.size() > MAX_MUESTRAS) {
+            throw new RostroException("DESCRIPTOR_INVALIDO",
+                    "Se requieren entre " + MIN_MUESTRAS + " y " + MAX_MUESTRAS + " capturas del rostro", 400);
+        }
+        descriptores.forEach(FacialService::validarDescriptor);
+        double dispersion = 0;
+        for (int i = 0; i < descriptores.size(); i++) {
+            for (int j = i + 1; j < descriptores.size(); j++) {
+                dispersion = Math.max(dispersion, distancia(descriptores.get(i), descriptores.get(j)));
+            }
+        }
+        boolean consistente = dispersion <= MAX_DISTANCIA_ENTRE_MUESTRAS;
+        double umbral = umbral();
+
+        Empleado duenio = null;
+        double mejor = Double.MAX_VALUE;
+        for (RostroEmpleado r : rostroRepository.findTodasConEmpleado()) {
+            double[] guardado = leer(r);
+            for (double[] d : descriptores) {
+                double dist = distancia(d, guardado);
+                if (dist < mejor) {
+                    mejor = dist;
+                    duenio = r.getEmpleado();
+                }
+            }
+        }
+        boolean yaRegistrado = duenio != null && mejor <= umbral;
+
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("muestras", descriptores.size());
+        r.put("dispersion", redondear(dispersion));
+        r.put("dispersionMaxima", MAX_DISTANCIA_ENTRE_MUESTRAS);
+        r.put("consistente", consistente);
+        r.put("umbral", umbral);
+        r.put("yaRegistradoPara", yaRegistrado ? resultado(duenio, mejor, umbral) : null);
+        r.put("aceptable", consistente && !yaRegistrado);
+        return r;
+    }
+
+    private Map<String, Object> datosEmpleado(Empleado e) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("empleadoId", e.getId());
+        m.put("nombre", e.getNombre());
+        m.put("cargo", e.getCargo());
+        m.put("foto", e.getFoto());
+        m.put("rol", e.getRol());
+        return m;
+    }
+
+    private Map<String, Object> resultado(Empleado e, double distancia, double umbral) {
+        Map<String, Object> m = datosEmpleado(Objects.requireNonNull(e));
+        m.put("distancia", redondear(distancia));
+        m.put("coincide", distancia <= umbral);
+        return m;
+    }
+
+    private static double redondear(double v) {
+        return Math.round(v * 10000) / 10000.0;
     }
 
     // ------------------------------------------------------------------ utilidades

@@ -170,6 +170,7 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 **Asistencia**
 - Solo se puede marcar desde los segmentos de red registrados. Si no, se responde `403` con el mensaje *"Está fuera de red"* (`fueraDeRed: true`).
 - La entrada solo se permite si el día está programado como laboral en el horario semanal activo o, si no hay uno, en el horario base.
+- **Director, gerente y jefe no tienen horario**: no aparecen en Horarios ni se les puede asignar uno. Marcan cualquier día (horario flexible, sin tardanzas), siempre con validación de red y reconocimiento facial.
 - La fecha y la hora las pone el servidor; los valores que envíe el cliente se ignoran.
 - Cada usuario solo puede marcar su propia asistencia.
 
@@ -181,6 +182,10 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 - Se rechaza registrar un rostro que ya pertenece a otra cuenta y capturas que no son de la misma persona.
 - Cada marcación guarda el método (`facial`/`manual`) y la distancia obtenida.
 - En el panel admin → **Reconocimiento facial** se ve quién tiene rostro registrado y se puede **probar la marcación** (a quién reconoce y con qué distancia) y **probar un registro**, sin registrar asistencia ni guardar rostros. Sirve para calibrar `UMBRAL_FACIAL`.
+
+**Eventos**
+- Al crear o editar un evento se puede indicar un **enlace** opcional (reunión de Teams/Meet, formulario, documento). Solo se aceptan direcciones `https://` o `http://`.
+- Las personas asignadas ven el botón **Ingresar** (abre en otra pestaña) solo si el evento tiene enlace.
 
 **Feriados laborados**
 - Si la entrada se marca en un feriado activo, se abonan automáticamente **2 días** de compensación (parámetro `DIAS_POR_FERIADO_LABORADO`), una sola vez por feriado.

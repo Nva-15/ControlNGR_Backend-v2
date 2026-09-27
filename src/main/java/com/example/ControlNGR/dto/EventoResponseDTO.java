@@ -17,6 +17,7 @@ public class EventoResponseDTO {
     private List<String> rolesVisibles;
     private Boolean permiteComentarios;
     private Boolean requiereRespuesta;
+    private String enlace;
     private String creadoPorNombre;
     private Integer creadoPorId;
     private LocalDateTime fechaCreacion;
@@ -38,6 +39,7 @@ public class EventoResponseDTO {
         this.rolesVisibles = evento.getRolesVisiblesList();
         this.permiteComentarios = evento.getPermiteComentarios();
         this.requiereRespuesta = evento.getRequiereRespuesta();
+        this.enlace = evento.getEnlace();
         this.creadoPorNombre = evento.getCreadoPor() != null ? evento.getCreadoPor().getNombre() : null;
         this.creadoPorId = evento.getCreadoPor() != null ? evento.getCreadoPor().getId() : null;
         this.fechaCreacion = evento.getFechaCreacion();
@@ -128,4 +130,7 @@ public class EventoResponseDTO {
         public Long getConteoVotos() { return conteoVotos; }
         public void setConteoVotos(Long conteoVotos) { this.conteoVotos = conteoVotos; }
     }
+
+    public String getEnlace() { return enlace; }
+    public void setEnlace(String enlace) { this.enlace = enlace; }
 }

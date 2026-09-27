@@ -51,6 +51,10 @@ public class Evento {
     @Column(name = "requiere_respuesta")
     private Boolean requiereRespuesta = false;
 
+    /** Enlace opcional (reunion virtual, formulario, documento). Solo http(s). */
+    @Column(name = "enlace", length = 500)
+    private String enlace;
+
     @ManyToOne
     @JoinColumn(name = "creado_por_id", nullable = false)
     private Empleado creadoPor;
@@ -137,6 +141,9 @@ public class Evento {
 
     public Boolean getRequiereRespuesta() { return requiereRespuesta; }
     public void setRequiereRespuesta(Boolean requiereRespuesta) { this.requiereRespuesta = requiereRespuesta; }
+
+    public String getEnlace() { return enlace; }
+    public void setEnlace(String enlace) { this.enlace = enlace; }
 
     public Empleado getCreadoPor() { return creadoPor; }
     public void setCreadoPor(Empleado creadoPor) { this.creadoPor = creadoPor; }

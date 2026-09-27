@@ -163,6 +163,7 @@ public class HorarioService {
     public List<HorarioResponseDTO> aplicarHorarioMultiplesDias(Integer empleadoId, List<String> dias, HorarioRequestDTO plantilla) {
         Empleado empleado = empleadoRepository.findById(empleadoId)
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado con ID: " + empleadoId));
+        validarTieneHorario(empleado);
 
         if (empleado.getUsuario() != null && !Boolean.TRUE.equals(empleado.getUsuario().getTipoUsuario().getMarcaAsistencia())) {
             throw new RuntimeException("Este rol no tiene horarios asignados");
@@ -205,6 +206,7 @@ public class HorarioService {
 
         Empleado empleado = empleadoRepository.findById(request.getEmpleadoId())
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado con ID: " + request.getEmpleadoId()));
+        validarTieneHorario(empleado);
 
         // Validar que no sea admin (admin no tiene horarios)
         if (empleado.getUsuario() != null && !Boolean.TRUE.equals(empleado.getUsuario().getTipoUsuario().getMarcaAsistencia())) {
@@ -244,6 +246,7 @@ public class HorarioService {
 
         Empleado empleado = empleadoRepository.findById(empleadoId)
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado con ID: " + empleadoId));
+        validarTieneHorario(empleado);
 
         // Validar que no sea admin (admin no tiene horarios)
         if (empleado.getUsuario() != null && !Boolean.TRUE.equals(empleado.getUsuario().getTipoUsuario().getMarcaAsistencia())) {
@@ -386,5 +389,12 @@ public class HorarioService {
 
     private String formatTime(LocalTime time) {
         return time != null ? time.format(TIME_FORMATTER) : null;
+    }
+
+    /** Director, gerente y jefe no tienen horario (marcan con horario flexible). */
+    private void validarTieneHorario(Empleado empleado) {
+        if (com.example.ControlNGR.security.Roles.esGerencia(empleado.getRol())) {
+            throw new RuntimeException("El director, el gerente y el jefe no tienen horario asignado");
+        }
     }
 }

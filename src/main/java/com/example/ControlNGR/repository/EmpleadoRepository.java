@@ -39,12 +39,15 @@ public interface EmpleadoRepository extends JpaRepository<Empleado, Integer> {
     List<Empleado> findActivosPorRoles(@Param("roles") List<String> roles);
 
     /** Empleados activos que tienen horario y marcan asistencia. */
+    /** Personal con horario: marca asistencia y no es director, gerente ni jefe (horario flexible). */
     @Query("SELECT e FROM Empleado e LEFT JOIN e.usuario u LEFT JOIN u.tipoUsuario t " +
-           "WHERE e.activo = true AND (t IS NULL OR t.marcaAsistencia = true)")
+           "WHERE e.activo = true AND (t IS NULL OR (t.marcaAsistencia = true " +
+           "AND LOWER(t.codigo) NOT IN ('director', 'gerente', 'jefe')))")
     List<Empleado> findEmpleadosConHorario();
 
     @Query("SELECT e FROM Empleado e WHERE LOWER(e.usuario.tipoUsuario.codigo) = LOWER(:rol) " +
-           "AND e.activo = true AND e.usuario.tipoUsuario.marcaAsistencia = true")
+           "AND e.activo = true AND e.usuario.tipoUsuario.marcaAsistencia = true " +
+           "AND LOWER(e.usuario.tipoUsuario.codigo) NOT IN ('director', 'gerente', 'jefe')")
     List<Empleado> findEmpleadosConHorarioPorRol(@Param("rol") String rol);
 
     @Query("SELECT e FROM Empleado e WHERE e.nombre LIKE %:nombre%")

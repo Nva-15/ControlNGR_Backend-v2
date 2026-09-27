@@ -13,6 +13,7 @@ public class EventoRequestDTO {
     private Boolean permiteComentarios = true;
     private Boolean requiereRespuesta = false;
     private List<String> opciones; // Para encuestas de opción múltiple
+    private String enlace; // Opcional: URL http(s) para ingresar con un clic
     private Integer creadoPorId;
 
     // Getters y Setters
@@ -45,4 +46,7 @@ public class EventoRequestDTO {
 
     public Integer getCreadoPorId() { return creadoPorId; }
     public void setCreadoPorId(Integer creadoPorId) { this.creadoPorId = creadoPorId; }
+
+    public String getEnlace() { return enlace; }
+    public void setEnlace(String enlace) { this.enlace = enlace; }
 }

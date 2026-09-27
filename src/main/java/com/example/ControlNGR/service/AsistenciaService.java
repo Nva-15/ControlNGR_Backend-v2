@@ -10,6 +10,7 @@ import com.example.ControlNGR.entity.Asistencia;
 import com.example.ControlNGR.entity.Empleado;
 import com.example.ControlNGR.entity.FeriadoLaborado;
 import com.example.ControlNGR.security.AccesoDenegadoException;
+import com.example.ControlNGR.security.Roles;
 import com.example.ControlNGR.security.UsuarioActual;
 import com.example.ControlNGR.entity.Horario;
 import com.example.ControlNGR.entity.HorarioSemanalDetalle;
@@ -98,7 +99,7 @@ public class AsistenciaService {
             asistencia.setDistanciaEntrada(verificacion.distancia());
 
             int tolerancia = parametroService.entero(ParametroService.TOLERANCIA_TARDANZA_MINUTOS, 5);
-            if (hora.isAfter(horaEntradaProgramada.plusMinutes(tolerancia))) {
+            if (horaEntradaProgramada != null && hora.isAfter(horaEntradaProgramada.plusMinutes(tolerancia))) {
                 asistencia.setEstado("tardanza");
                 asistencia.setObservaciones("Marcaje tarde");
             } else {
@@ -143,6 +144,10 @@ public class AsistenciaService {
      * Si el dia no es laboral (descanso, vacaciones, etc.) o no hay horario, no se permite marcar.
      */
     private LocalTime obtenerEntradaProgramada(Empleado empleado, LocalDate fecha) {
+        // Director, gerente y jefe no tienen horario: marcan cualquier dia y no se consideran tardanzas
+        if (Roles.esGerencia(empleado.getRol())) {
+            return null;
+        }
         String tipoDia;
         LocalTime entrada;
         Optional<HorarioSemanalDetalle> semanal =

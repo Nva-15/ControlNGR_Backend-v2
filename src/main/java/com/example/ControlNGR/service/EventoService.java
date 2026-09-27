@@ -63,6 +63,7 @@ public class EventoService {
         evento.setFechaFin(request.getFechaFin());
         evento.setPermiteComentarios(request.getPermiteComentarios());
         evento.setRequiereRespuesta(request.getRequiereRespuesta());
+        evento.setEnlace(normalizarEnlace(request.getEnlace()));
         evento.setCreadoPor(creador);
         evento.setEstado(EstadoEvento.BORRADOR);
 
@@ -108,6 +109,7 @@ public class EventoService {
         evento.setFechaFin(request.getFechaFin());
         evento.setPermiteComentarios(request.getPermiteComentarios());
         evento.setRequiereRespuesta(request.getRequiereRespuesta());
+        evento.setEnlace(normalizarEnlace(request.getEnlace()));
 
         if (request.getRolesVisibles() != null) {
             evento.setRolesVisiblesList(request.getRolesVisibles());
@@ -433,5 +435,24 @@ public class EventoService {
             eventoRepository.save(evento);
             logger.info("Evento finalizado automaticamente: ID {}", evento.getId());
         }
+    }
+
+    /**
+     * Enlace opcional del evento: vacio = sin enlace. Solo se aceptan direcciones http(s) completas
+     * (evita enlaces "javascript:" u otros esquemas peligrosos).
+     */
+    static String normalizarEnlace(String enlace) {
+        if (enlace == null || enlace.isBlank()) return null;
+        String e = enlace.trim();
+        if (!e.matches("(?i)^https?://[^\\s<>\"']+$") || e.length() > 500) {
+            throw new RuntimeException("El enlace debe ser una dirección web completa que empiece con https:// o http://");
+        }
+        try {
+            java.net.URI uri = new java.net.URI(e);
+            if (uri.getHost() == null || uri.getHost().isBlank()) throw new java.net.URISyntaxException(e, "sin host");
+        } catch (java.net.URISyntaxException ex) {
+            throw new RuntimeException("El enlace no es una dirección web válida");
+        }
+        return e;
     }
 }

@@ -1,6 +1,9 @@
 # ---------- Etapa 1: compilar ----------
 FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
+# Limita la memoria de Gradle para equipos con poca RAM asignada a Docker
+ENV GRADLE_OPTS="-Xmx256m" JAVA_TOOL_OPTIONS="-XX:+UseSerialGC"
+RUN mkdir -p /root/.gradle && echo "org.gradle.jvmargs=-Xmx768m -XX:+UseSerialGC" > /root/.gradle/gradle.properties
 COPY gradlew settings.gradle build.gradle ./
 COPY gradle gradle
 # Descarga Gradle y las dependencias; reintenta si la conexion es lenta

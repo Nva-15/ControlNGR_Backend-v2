@@ -24,6 +24,9 @@ services:
       - --default-time-zone=-05:00
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
+      # Menor consumo de memoria (suficiente para este sistema)
+      - --performance-schema=OFF
+      - --innodb-buffer-pool-size=128M
     volumes:
       - db_data:/var/lib/mysql
     ports:
@@ -49,6 +52,8 @@ services:
       DB_USER: root
       STORAGE_IMG: file:/app/data/img/
       STORAGE_EVIDENCIAS: /app/data/evidencias
+      # Memoria maxima de Java (subir si hay muchos usuarios y RAM disponible)
+      JAVA_TOOL_OPTIONS: ${BACKEND_JAVA_OPTS:--Xms128m -Xmx512m -XX:+UseSerialGC}
       # La IP real del cliente llega desde nginx; solo se confia en la red interna de Docker
       FORWARD_HEADERS_STRATEGY: native
       TRUSTED_PROXIES: '172\.28\.\d{1,3}\.\d{1,3}'

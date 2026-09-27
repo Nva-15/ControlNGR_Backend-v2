@@ -35,12 +35,23 @@ public class ImageService {
      * Normaliza la ruta de almacenamiento removiendo el prefijo file: en cualquier formato
      * Soporta: file:///path, file://path, file:/path, file:./path
      */
+    /**
+     * Convierte app.storage.location en una ruta del sistema de archivos terminada en "/":
+     * file:/app/data/img/ -> /app/data/img/ (Linux/Docker), file:///D:/img/ -> D:/img/ (Windows),
+     * file:./data/img/ -> ./data/img/ (relativa).
+     */
     private String normalizarRuta() {
         if (storageLocation == null) return "";
-        // Remover prefijo file: con cualquier cantidad de slashes (0 a 3)
-        return storageLocation
-            .replaceFirst("^file:/{0,3}", "")
-            .replace("\\", "/");
+        String ruta = storageLocation.replace("\\", "/");
+        if (ruta.startsWith("file:")) {
+            ruta = ruta.substring("file:".length());
+            if (ruta.matches("^/*[A-Za-z]:/.*")) {
+                ruta = ruta.replaceFirst("^/+", "");      // unidad de Windows
+            } else if (ruta.startsWith("/")) {
+                ruta = ruta.replaceFirst("^/+", "/");     // ruta absoluta
+            }
+        }
+        return ruta.endsWith("/") ? ruta : ruta + "/";
     }
 
     private boolean esExtensionValida(String filename) {
@@ -254,24 +265,25 @@ public class ImageService {
         return "img/" + nombreArchivo;
     }
 
+    /** Ruta del archivo dentro de la carpeta de fotos, o null si intenta salir de ella. */
+    private Path rutaSegura(String nombreArchivo) {
+        if (nombreArchivo == null || nombreArchivo.isBlank()) return null;
+        String nombre = nombreArchivo.startsWith("img/") ? nombreArchivo.substring(4) : nombreArchivo;
+        Path base = Paths.get(normalizarRuta()).toAbsolutePath().normalize();
+        Path ruta = base.resolve(nombre).normalize();
+        return ruta.startsWith(base) && !ruta.equals(base) ? ruta : null;
+    }
+
     public void eliminarImagenAnterior(String nombreArchivo) throws IOException {
-        if (nombreArchivo != null && !nombreArchivo.isEmpty() && !nombreArchivo.equals("img/perfil.png")) {
-            String rutaCompleta = normalizarRuta() +
-                nombreArchivo.replace("img/", "");
-            Path ruta = Paths.get(rutaCompleta);
-            if (Files.exists(ruta)) {
-                Files.delete(ruta);
-            }
+        if ("img/perfil.png".equals(nombreArchivo)) return;
+        Path ruta = rutaSegura(nombreArchivo);
+        if (ruta != null && Files.isRegularFile(ruta)) {
+            Files.delete(ruta);
         }
     }
 
     public boolean existeImagen(String nombreArchivo) {
-        if (nombreArchivo == null || nombreArchivo.isEmpty()) {
-            return false;
-        }
-        String rutaCompleta = normalizarRuta() +
-            nombreArchivo.replace("img/", "");
-        Path ruta = Paths.get(rutaCompleta);
-        return Files.exists(ruta);
+        Path ruta = rutaSegura(nombreArchivo);
+        return ruta != null && Files.isRegularFile(ruta);
     }
 }

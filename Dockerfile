@@ -3,7 +3,10 @@ FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
 COPY gradlew settings.gradle build.gradle ./
 COPY gradle gradle
-RUN chmod +x gradlew && ./gradlew --no-daemon dependencies > /dev/null
+# Descarga Gradle y las dependencias; reintenta si la conexion es lenta
+RUN chmod +x gradlew && for i in 1 2 3; do ./gradlew --no-daemon dependencies > /dev/null && break; \
+      echo "Descarga fallida (intento $i), reintentando..."; sleep 10; done \
+    && ./gradlew --no-daemon --offline dependencies > /dev/null
 COPY src src
 RUN ./gradlew --no-daemon bootJar -x test
 

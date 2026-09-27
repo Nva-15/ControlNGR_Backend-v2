@@ -22,6 +22,8 @@ public class AsistenciaResponseDTO {
     /** facial o manual */
     private String metodoEntrada;
     private String metodoSalida;
+    private String mensajeEntrada;
+    private String mensajeSalida;
     
     public AsistenciaResponseDTO() {}
     
@@ -39,6 +41,8 @@ public class AsistenciaResponseDTO {
         this.ipSalida = asistencia.getIpSalida();
         this.metodoEntrada = asistencia.getMetodoEntrada();
         this.metodoSalida = asistencia.getMetodoSalida();
+        this.mensajeEntrada = asistencia.getMensajeEntrada();
+        this.mensajeSalida = asistencia.getMensajeSalida();
     }
 
 	public Integer getId() {
@@ -128,4 +132,8 @@ public class AsistenciaResponseDTO {
 
     public String getMetodoSalida() { return metodoSalida; }
     public void setMetodoSalida(String metodoSalida) { this.metodoSalida = metodoSalida; }
+    public String getMensajeEntrada() { return mensajeEntrada; }
+    public void setMensajeEntrada(String mensajeEntrada) { this.mensajeEntrada = mensajeEntrada; }
+    public String getMensajeSalida() { return mensajeSalida; }
+    public void setMensajeSalida(String mensajeSalida) { this.mensajeSalida = mensajeSalida; }
 }

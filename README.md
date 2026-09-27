@@ -135,6 +135,7 @@ MAIL_FROM=cuenta@gmail.com
 |---|---|---|
 | `admin` | `$.4dmin2026` | Panel maestro. Debe cambiarla al ingresar |
 | DNI de cada empleado | la misma que tenía antes | Deben cambiarla al ingresar |
+| DNI de un empleado nuevo | `Soporte26$` | Solo al crearlo. Debe cambiarla en su primer ingreso |
 
 Mientras un usuario tenga el cambio de contraseña pendiente, la API responde `403 {"debeCambiarPassword": true}` a todo excepto `/api/auth/**`. El endpoint `POST /api/auth/cambiar-password` devuelve un token nuevo.
 
@@ -173,6 +174,10 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 - **Director, gerente y jefe no tienen horario**: no aparecen en Horarios ni se les puede asignar uno. Marcan cualquier día (horario flexible, sin tardanzas), siempre con validación de red y reconocimiento facial.
 - La fecha y la hora las pone el servidor; los valores que envíe el cliente se ignoran.
 - Cada usuario solo puede marcar su propia asistencia.
+- **Tolerancia de tardanza: 10 minutos** (parámetro `TOLERANCIA_TARDANZA_MINUTOS`, entero de 0 a 120). Se cambia en el panel admin → **Reporte de asistencia** y se aplica igual al marcar y en el reporte.
+- La marcación se registra **en cuanto se verifica el rostro**. Después el colaborador ve la hora registrada y puede dejar, si quiere, un **mensaje breve para su supervisor** (hasta 300 caracteres, uno por marcación, dentro de los 30 minutos siguientes). El mensaje aparece en *Reportes de asistencia*.
+- En el panel admin → **Reporte de asistencia** se marca a quiénes se les aplica el reporte (todo el personal con horario viene marcado).
+- **Un empleado inactivo no puede ingresar al sistema**: al desactivarlo también se bloquea su usuario y su sesión abierta deja de funcionar.
 
 **Reconocimiento facial**
 - Toda marcación de entrada y salida exige el rostro (parámetro `MARCACION_FACIAL_OBLIGATORIA`, activo por defecto). Si se desactiva, solo quienes tienen rostro registrado marcan con cámara.
@@ -198,6 +203,7 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 **Solicitudes**
 - Tipos: `vacaciones`, `compensacion`, `descanso_medico` y `licencia` (el tipo `permiso` se eliminó).
 - Se cuentan días calendario, incluidos el día de inicio y el de fin.
+- La fecha de inicio y la de fin deben ser **hoy o posteriores** (al crear y al editar).
 - Vacaciones y compensación se **rechazan al crearlas si no hay saldo disponible**. El disponible es el saldo menos lo que ya está en solicitudes pendientes.
 - El saldo se descuenta **al aprobar**. Si una solicitud aprobada se corrige a rechazada, los días se devuelven.
 - Descanso médico y licencia exigen adjuntar evidencia (JPG, PNG o PDF, hasta 10 MB). La licencia exige además un motivo (paternidad, fallecimiento de familiar, etc.).
@@ -219,6 +225,7 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 |---|---|---|
 | GET | `/api/asistencia/verificar-red` | `{ip, dentroDeRed, mensaje}` para avisar antes de marcar |
 | POST | `/api/asistencia/registrar` | `{tipo: "entrada" \| "salida"}`. Si fue feriado, la respuesta trae `feriado` y `diasCompensacionAbonados` |
+| PUT | `/api/asistencia/{id}/mensaje` | `{tipo, mensaje}`: justificación del propio colaborador sobre su marcación (una vez, hasta 30 min después). El reporte trae `mensajeEntrada` y `mensajeSalida` |
 
 ### Solicitudes
 | Método | Ruta | Nota |
@@ -255,9 +262,9 @@ La marcación (`POST /api/asistencia/registrar`) recibe además `descriptor: num
 | GET | `/api/saldos/empleado/{id}` | Para jefaturas, supervisores y admin |
 
 ### Panel admin (`/api/admin/**`, solo rol `admin`)
-`mi-ip` · `parametros` · `segmentos-red` · `feriados` · `departamentos` · `tipos-usuario` · `reglas-aprobacion` · `tipos-solicitud` · `motivos-licencia` · `usuarios` (rol, estado, restablecer contraseña) · `saldos` (listado, `carga-inicial`, `ajuste`, movimientos) · `feriados-laborados` (listado y revertir) · `vacaciones/procesar`.
+`mi-ip` · `parametros` · `segmentos-red` · `feriados` · `departamentos` · `tipos-usuario` · `reglas-aprobacion` · `tipos-solicitud` · `motivos-licencia` · `usuarios` (rol, estado, restablecer contraseña) · `saldos` (listado, `carga-inicial`, `ajuste`, movimientos) · `feriados-laborados` (listado y revertir) · `vacaciones/procesar` · `reporte-asistencia/personal` (GET lista, PUT `{incluidos: [ids]}`).
 
-El admin registra empleados con `POST /api/empleados`: se crea también su usuario, con el DNI como usuario y contraseña inicial.
+Los empleados se registran con `POST /api/empleados` (admin, gerencia y **supervisores**; el supervisor solo registra personal operativo: técnico, HD, NOC y BO). Se crea también su usuario: el DNI como usuario y la contraseña inicial `Soporte26$`, que debe cambiar en su primer ingreso. Solo el admin y la gerencia pueden indicar otro usuario u otra contraseña inicial.
 
 ---
 

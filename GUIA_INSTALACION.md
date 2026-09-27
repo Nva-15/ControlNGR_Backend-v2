@@ -218,6 +218,9 @@ Con muchas PCs, TI puede distribuir `ca.crt` por directiva de grupo (GPO). Si fa
    - **Segmentos de red**: `10.92.104.%` (oficina) y `192.168.113.%` (VPN).
    - **Feriados** del año.
    - **Saldos y carga inicial** de vacaciones y días por compensar.
+   - **Reporte de asistencia**: tolerancia de tardanza (10 minutos por defecto) y el personal al que se aplica el reporte.
+
+> Los empleados nuevos ingresan con su **DNI** y la contraseña inicial **`Soporte26$`**; el sistema les pide cambiarla la primera vez.
 
 > Si está **restaurando datos de otro equipo**, haga primero el paso 8 (restaurar) y luego ingrese con la contraseña de admin que ya tenía.
 

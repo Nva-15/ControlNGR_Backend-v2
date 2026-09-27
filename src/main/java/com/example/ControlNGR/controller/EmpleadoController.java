@@ -78,9 +78,14 @@ public class EmpleadoController {
     @PostMapping
     public ResponseEntity<?> createEmpleado(@RequestBody EmpleadoRequestDTO datos) {
         Usuario editor = usuarioActual.requerido();
-        if (!puedeGestionarAcceso(editor)) {
+        if (!Roles.puedeCrearEmpleados(editor.getRol())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(Map.of("error", "Solo el administrador o gerencia pueden registrar empleados"));
+                    .body(Map.of("error", "Solo el administrador, gerencia o un supervisor pueden registrar empleados"));
+        }
+        if (!puedeGestionarAcceso(editor)) {
+            // El supervisor no define usuario ni contraseña: se usan el DNI y la contraseña inicial
+            datos.setUsername(null);
+            datos.setPassword(null);
         }
         String rolNuevo = datos.getRol() == null || datos.getRol().isBlank() ? Roles.TECNICO : datos.getRol().trim();
         if (!Roles.puedeAsignarRol(editor.getRol(), rolNuevo)) {

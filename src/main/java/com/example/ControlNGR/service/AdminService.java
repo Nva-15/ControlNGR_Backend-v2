@@ -52,6 +52,38 @@ public class AdminService {
         this.usuarioActual = usuarioActual;
     }
 
+    // ==================== PERSONAL DEL REPORTE DE ASISTENCIA ====================
+
+    /** Personal con horario (marca asistencia) y si aparece o no en el reporte de asistencia. */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> personalReporteAsistencia() {
+        return empleadoRepository.findEmpleadosConHorario().stream()
+                .sorted(Comparator.comparing(Empleado::getNombre, String.CASE_INSENSITIVE_ORDER))
+                .map(e -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", e.getId());
+                    m.put("nombre", e.getNombre());
+                    m.put("cargo", e.getCargo());
+                    m.put("rol", e.getRol());
+                    m.put("foto", e.getFoto());
+                    m.put("enReporte", !Boolean.FALSE.equals(e.getEnReporteAsistencia()));
+                    return m;
+                })
+                .toList();
+    }
+
+    /** Guarda quienes aparecen en el reporte: los ids recibidos se incluyen, el resto del personal se excluye. */
+    @Transactional
+    public List<Map<String, Object>> guardarPersonalReporteAsistencia(Collection<Integer> incluidos) {
+        Set<Integer> ids = incluidos == null ? Set.of() : new HashSet<>(incluidos);
+        List<Empleado> personal = empleadoRepository.findEmpleadosConHorario();
+        for (Empleado e : personal) {
+            e.setEnReporteAsistencia(ids.contains(e.getId()));
+        }
+        empleadoRepository.saveAll(personal);
+        return personalReporteAsistencia();
+    }
+
     // ==================== SEGMENTOS DE RED ====================
 
     @Transactional(readOnly = true)

@@ -129,6 +129,7 @@ public class SolicitudService {
 
         TipoSolicitud tipo = obtenerTipo(request.getTipo());
         validarFechas(request.getFechaInicio(), request.getFechaFin());
+        validarDesdeHoy(request.getFechaInicio(), request.getFechaFin());
         BigDecimal dias = calcularDias(request.getFechaInicio(), request.getFechaFin());
 
         MotivoLicencia motivoLicencia = null;
@@ -265,6 +266,7 @@ public class SolicitudService {
         LocalDate fin = payload.containsKey("fechaFin")
                 ? LocalDate.parse(String.valueOf(payload.get("fechaFin"))) : solicitud.getFechaFin();
         validarFechas(inicio, fin);
+        validarDesdeHoy(inicio, fin);
         BigDecimal dias = calcularDias(inicio, fin);
         validarSinSolapamiento(editor.getId(), inicio, fin, solicitud.getId());
         validarSaldoDisponible(editor, solicitud.getTipoSolicitud(), dias, solicitud.getId());
@@ -441,6 +443,17 @@ public class SolicitudService {
         }
         if (inicio.isAfter(fin)) {
             throw new IllegalArgumentException("La fecha de inicio no puede ser posterior a la fecha de fin");
+        }
+    }
+
+    /** La fecha de inicio y la de fin deben ser hoy o posteriores (hora de Lima). */
+    static void validarDesdeHoy(LocalDate inicio, LocalDate fin) {
+        LocalDate hoy = LocalDate.now(java.time.ZoneId.of("America/Lima"));
+        if (inicio.isBefore(hoy)) {
+            throw new IllegalArgumentException("La fecha de inicio debe ser hoy o una fecha posterior");
+        }
+        if (fin.isBefore(hoy)) {
+            throw new IllegalArgumentException("La fecha de fin debe ser hoy o una fecha posterior");
         }
     }
 

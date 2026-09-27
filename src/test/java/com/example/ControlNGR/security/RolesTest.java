@@ -37,6 +37,12 @@ class RolesTest {
         assertTrue(Roles.puedeAsignarRol("jefe", "supervisor"));
         assertFalse(Roles.puedeAsignarRol("jefe", "jefe"));
         assertFalse(Roles.puedeAsignarRol("jefe", "director"));
-        assertFalse(Roles.puedeAsignarRol("supervisor", "tecnico"));
+        assertTrue(Roles.puedeAsignarRol("supervisor", "tecnico"));
+        assertFalse(Roles.puedeAsignarRol("supervisor", "supervisor"));
+        assertFalse(Roles.puedeAsignarRol("supervisor", "asistente"));
+        assertFalse(Roles.puedeAsignarRol("gestor", "tecnico"));
+        assertTrue(Roles.puedeCrearEmpleados("supervisor"));
+        assertFalse(Roles.puedeCrearEmpleados("gestor"));
+        assertFalse(Roles.puedeCrearEmpleados("tecnico"));
     }
 }

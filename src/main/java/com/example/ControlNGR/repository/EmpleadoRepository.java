@@ -45,6 +45,12 @@ public interface EmpleadoRepository extends JpaRepository<Empleado, Integer> {
            "AND LOWER(t.codigo) NOT IN ('director', 'gerente', 'jefe')))")
     List<Empleado> findEmpleadosConHorario();
 
+    /** Personal con horario marcado en el panel admin para aparecer en el reporte de asistencia. */
+    @Query("SELECT e FROM Empleado e LEFT JOIN e.usuario u LEFT JOIN u.tipoUsuario t " +
+           "WHERE e.activo = true AND e.enReporteAsistencia = true AND (t IS NULL OR (t.marcaAsistencia = true " +
+           "AND LOWER(t.codigo) NOT IN ('director', 'gerente', 'jefe')))")
+    List<Empleado> findEmpleadosReporteAsistencia();
+
     @Query("SELECT e FROM Empleado e WHERE LOWER(e.usuario.tipoUsuario.codigo) = LOWER(:rol) " +
            "AND e.activo = true AND e.usuario.tipoUsuario.marcaAsistencia = true " +
            "AND LOWER(e.usuario.tipoUsuario.codigo) NOT IN ('director', 'gerente', 'jefe')")

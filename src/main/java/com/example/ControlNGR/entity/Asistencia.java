@@ -30,6 +30,13 @@ public class Asistencia {
     @Column(name = "observaciones", columnDefinition = "TEXT")
     private String observaciones;
     
+    /** Breve justificacion que el empleado escribe despues de marcar (la ve su supervisor). */
+    @Column(name = "mensaje_entrada", length = 300)
+    private String mensajeEntrada;
+
+    @Column(name = "mensaje_salida", length = 300)
+    private String mensajeSalida;
+
     @Column(name = "salida_automatica", nullable = false)
     private Boolean salidaAutomatica = false;
 
@@ -143,4 +150,8 @@ public class Asistencia {
 
 	public java.math.BigDecimal getDistanciaSalida() { return distanciaSalida; }
 	public void setDistanciaSalida(java.math.BigDecimal distanciaSalida) { this.distanciaSalida = distanciaSalida; }
+	public String getMensajeEntrada() { return mensajeEntrada; }
+	public void setMensajeEntrada(String mensajeEntrada) { this.mensajeEntrada = mensajeEntrada; }
+	public String getMensajeSalida() { return mensajeSalida; }
+	public void setMensajeSalida(String mensajeSalida) { this.mensajeSalida = mensajeSalida; }
 }

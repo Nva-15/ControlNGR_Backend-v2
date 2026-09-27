@@ -98,7 +98,7 @@ public class AsistenciaService {
             asistencia.setMetodoEntrada(verificacion.metodo());
             asistencia.setDistanciaEntrada(verificacion.distancia());
 
-            int tolerancia = parametroService.entero(ParametroService.TOLERANCIA_TARDANZA_MINUTOS, 5);
+            int tolerancia = toleranciaMinutos();
             if (horaEntradaProgramada != null && hora.isAfter(horaEntradaProgramada.plusMinutes(tolerancia))) {
                 asistencia.setEstado("tardanza");
                 asistencia.setObservaciones("Marcaje tarde");
@@ -171,6 +171,59 @@ public class AsistenciaService {
         return entrada;
     }
 
+    /** Minutos de tolerancia antes de considerar tardanza (editable en el panel admin, 10 por defecto). */
+    private int toleranciaMinutos() {
+        return Math.max(0, parametroService.entero(ParametroService.TOLERANCIA_TARDANZA_MINUTOS, 10));
+    }
+
+    /** Tiempo que tiene el empleado para escribir su justificacion despues de marcar. */
+    static final int MINUTOS_PARA_MENSAJE = 30;
+    static final int LARGO_MENSAJE = 300;
+
+    /**
+     * Guarda la breve justificacion que el empleado escribe despues de marcar. La marcacion ya quedo
+     * registrada con su hora; el mensaje solo se agrega (una vez, sobre su propia marcacion reciente).
+     */
+    @Transactional
+    public AsistenciaResponseDTO registrarMensaje(Integer asistenciaId, String tipo, String mensaje) {
+        Empleado empleado = usuarioActual.empleadoRequerido();
+        Asistencia asistencia = asistenciaRepository.findById(asistenciaId)
+                .orElseThrow(() -> new IllegalArgumentException("Marcación no encontrada"));
+        if (!asistencia.getEmpleado().getId().equals(empleado.getId())) {
+            throw new AccesoDenegadoException("Solo puede justificar sus propias marcaciones");
+        }
+        String texto = mensaje == null ? "" : mensaje.trim();
+        if (texto.isEmpty()) throw new IllegalArgumentException("Escriba el mensaje");
+        if (texto.length() > LARGO_MENSAJE) {
+            throw new IllegalArgumentException("El mensaje no puede superar " + LARGO_MENSAJE + " caracteres");
+        }
+
+        boolean entrada = "entrada".equalsIgnoreCase(tipo);
+        if (!entrada && !"salida".equalsIgnoreCase(tipo)) {
+            throw new IllegalArgumentException("Tipo inválido. Use 'entrada' o 'salida'");
+        }
+        LocalTime hora = entrada ? asistencia.getHoraEntrada() : asistencia.getHoraSalida();
+        if (hora == null || (!entrada && Boolean.TRUE.equals(asistencia.getSalidaAutomatica()))) {
+            throw new IllegalArgumentException("No hay una marcación de " + tipo.toLowerCase() + " para justificar");
+        }
+        if ((entrada ? asistencia.getMensajeEntrada() : asistencia.getMensajeSalida()) != null) {
+            throw new IllegalArgumentException("Ya envió un mensaje para esta marcación");
+        }
+        LocalDateTime marcada = LocalDateTime.of(asistencia.getFecha(), hora);
+        // Salida de un turno que cruzo la medianoche
+        if (!entrada && asistencia.getHoraEntrada() != null && hora.isBefore(asistencia.getHoraEntrada())) {
+            marcada = marcada.plusDays(1);
+        }
+        if (Duration.between(marcada, LocalDateTime.now()).toMinutes() > MINUTOS_PARA_MENSAJE) {
+            throw new IllegalArgumentException("El mensaje solo se puede enviar hasta " + MINUTOS_PARA_MENSAJE
+                    + " minutos después de marcar");
+        }
+
+        if (entrada) asistencia.setMensajeEntrada(texto);
+        else asistencia.setMensajeSalida(texto);
+        return new AsistenciaResponseDTO(asistenciaRepository.save(asistencia));
+    }
+
     private void agregarObservacion(Asistencia asistencia, String observacion) {
         if (observacion == null || observacion.trim().isEmpty()) return;
         String actuales = asistencia.getObservaciones();
@@ -235,7 +288,8 @@ public class AsistenciaService {
         List<ReporteAsistenciaDTO> reporte = new ArrayList<>();
 
         // Obtener empleados activos (excluyendo admin)
-        List<Empleado> empleados = empleadoRepository.findEmpleadosConHorario();
+        List<Empleado> empleados = empleadoRepository.findEmpleadosReporteAsistencia();
+        int tolerancia = toleranciaMinutos();
 
         // Obtener todas las asistencias en el rango
         List<Asistencia> asistencias = asistenciaRepository.findByFechaBetween(fechaInicio, fechaFin);
@@ -247,7 +301,7 @@ public class AsistenciaService {
                 String diaSemanaIngles = fecha.getDayOfWeek().toString().toLowerCase();
                 String diaSemanaEsp = traducirDia(diaSemanaIngles);
 
-                // Solo usar horarios semanales activos (no borradores ni historicos)
+                // Prioridad: horario semanal activo (no borradores ni historicos), luego horario base
                 Optional<HorarioSemanalDetalle> horarioSemanalOpt =
                         horarioSemanalDetalleRepository.findHorarioActivoEmpleadoEnFecha(empleado.getId(), fecha);
 
@@ -265,6 +319,16 @@ public class AsistenciaService {
                     tipoDia = detalle.getTipoDia();
                     turno = detalle.getTurno();
                     tieneHorario = true;
+                } else {
+                    // Sin horario semanal activo: se usa el horario base (igual que al marcar)
+                    Optional<Horario> base = horarioRepository.findByEmpleadoIdAndDiaSemana(empleado.getId(), diaSemanaEsp);
+                    if (base.isPresent()) {
+                        horaEntradaProgramada = base.get().getHoraEntrada();
+                        horaSalidaProgramada = base.get().getHoraSalida();
+                        tipoDia = base.get().getTipoDia();
+                        turno = base.get().getTurno();
+                        tieneHorario = true;
+                    }
                 }
 
                 // Buscar asistencia para este empleado en esta fecha
@@ -308,6 +372,8 @@ public class AsistenciaService {
                         dto.setHoraSalidaRealFromTime(asistencia.getHoraSalida());
                         dto.setObservaciones(asistencia.getObservaciones());
                         dto.setSalidaAutomatica(asistencia.getSalidaAutomatica());
+                        dto.setMensajeEntrada(asistencia.getMensajeEntrada());
+                        dto.setMensajeSalida(asistencia.getMensajeSalida());
 
                         // Calcular retraso
                         if (horaEntradaProgramada != null) {
@@ -315,7 +381,7 @@ public class AsistenciaService {
                                     horaEntradaProgramada, asistencia.getHoraEntrada()
                             ).toMinutes();
 
-                            if (minutos > 5) {
+                            if (minutos > tolerancia) {
                                 dto.setEstado("Tardanza");
                                 dto.setMinutosRetraso(minutos);
                             } else {

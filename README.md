@@ -8,6 +8,8 @@ Spring Boot 3.5 · Java 21 · MySQL 8 · Flyway · Docker
 
 ## 1. Levantar el sistema con Docker (recomendado)
 
+> **¿Instalación en el equipo de la empresa?** Siga la guía paso a paso: [GUIA_INSTALACION.md](GUIA_INSTALACION.md).
+
 Requisitos: Docker (Engine con el plugin `compose`, o Docker Desktop) y los **dos repositorios clonados en la misma carpeta**:
 
 ```

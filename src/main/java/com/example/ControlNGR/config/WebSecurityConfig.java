@@ -116,6 +116,9 @@ public class WebSecurityConfig {
                     .hasAnyRole(Roles.AUTH_GESTION)
                 .requestMatchers(HttpMethod.POST, "/api/asistencia/verificar-salidas").hasAnyRole(Roles.AUTH_GESTION)
 
+                // Reconocimiento facial: el controlador valida sobre que empleado puede actuar cada rol
+                .requestMatchers("/api/face/**").hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
+
                 // Asistencia, solicitudes, saldos y notificaciones: solo personal (el admin no marca ni solicita)
                 .requestMatchers("/api/asistencia/**", "/api/solicitudes/**", "/api/saldos/**", "/api/notificaciones/**")
                     .hasAnyRole(Roles.AUTH_PERSONAL)
@@ -153,12 +156,14 @@ public class WebSecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         // Permitir acceso desde localhost (desarrollo) y desde cualquier IP en red local (producción)
+        // En Docker la web y la API comparten origen (nginx). Esto cubre el desarrollo (ng serve)
+        // y el acceso directo por IP de la red local, con http o https.
         configuration.setAllowedOriginPatterns(Arrays.asList(
-            "http://localhost:*",
-            "http://127.0.0.1:*",
-            "http://192.168.*.*:*",
-            "http://10.*.*.*:*",
-            "http://172.16.*.*:*"
+            "http://localhost:*", "https://localhost:*",
+            "http://127.0.0.1:*", "https://127.0.0.1:*",
+            "http://192.168.*.*:*", "https://192.168.*.*:*",
+            "http://10.*.*.*:*", "https://10.*.*.*:*",
+            "http://172.16.*.*:*", "https://172.16.*.*:*"
         ));
 
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"));

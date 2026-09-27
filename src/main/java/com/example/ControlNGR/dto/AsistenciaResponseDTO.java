@@ -19,6 +19,9 @@ public class AsistenciaResponseDTO {
     /** Si la entrada fue en feriado: nombre del feriado y dias de compensacion abonados. */
     private String feriado;
     private java.math.BigDecimal diasCompensacionAbonados;
+    /** facial o manual */
+    private String metodoEntrada;
+    private String metodoSalida;
     
     public AsistenciaResponseDTO() {}
     
@@ -34,6 +37,8 @@ public class AsistenciaResponseDTO {
         this.salidaAutomatica = asistencia.getSalidaAutomatica();
         this.ipEntrada = asistencia.getIpEntrada();
         this.ipSalida = asistencia.getIpSalida();
+        this.metodoEntrada = asistencia.getMetodoEntrada();
+        this.metodoSalida = asistencia.getMetodoSalida();
     }
 
 	public Integer getId() {
@@ -117,4 +122,10 @@ public class AsistenciaResponseDTO {
 
     public java.math.BigDecimal getDiasCompensacionAbonados() { return diasCompensacionAbonados; }
     public void setDiasCompensacionAbonados(java.math.BigDecimal dias) { this.diasCompensacionAbonados = dias; }
+
+    public String getMetodoEntrada() { return metodoEntrada; }
+    public void setMetodoEntrada(String metodoEntrada) { this.metodoEntrada = metodoEntrada; }
+
+    public String getMetodoSalida() { return metodoSalida; }
+    public void setMetodoSalida(String metodoSalida) { this.metodoSalida = metodoSalida; }
 }

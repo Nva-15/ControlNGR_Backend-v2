@@ -37,6 +37,11 @@ public class Empleado {
     @Column(name = "email", length = 100)
     private String email;
 
+    /** Fecha en que el empleado acepto el uso de su rostro para marcar (Ley 29733). */
+    @JsonIgnore
+    @Column(name = "consentimiento_facial_at")
+    private java.time.LocalDateTime consentimientoFacialAt;
+
     @Column(name = "descripcion", columnDefinition = "TEXT")
     private String descripcion;
 
@@ -111,6 +116,9 @@ public class Empleado {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public java.time.LocalDateTime getConsentimientoFacialAt() { return consentimientoFacialAt; }
+    public void setConsentimientoFacialAt(java.time.LocalDateTime consentimientoFacialAt) { this.consentimientoFacialAt = consentimientoFacialAt; }
 
     public String getDescripcion() { return descripcion; }
     public void setDescripcion(String descripcion) { this.descripcion = descripcion; }

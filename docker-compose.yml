@@ -70,8 +70,17 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
+    environment:
+      # IP fija del servidor: se incluye en el certificado HTTPS generado automaticamente
+      SERVIDOR_IP: ${SERVIDOR_IP:-}
+      SERVIDOR_NOMBRE: ${SERVIDOR_NOMBRE:-}
+      HTTPS_PORT: ${HTTPS_PORT:-443}
+    volumes:
+      # Certificado HTTPS (se genera solo; ca.crt se importa en cada PC). Nunca se sube a git
+      - ./certs:/etc/nginx/certs
     ports:
       - "${APP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     networks: [interna]
 
 networks:

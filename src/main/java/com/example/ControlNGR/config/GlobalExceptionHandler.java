@@ -2,6 +2,7 @@ package com.example.ControlNGR.config;
 
 import com.example.ControlNGR.security.AccesoDenegadoException;
 import com.example.ControlNGR.security.FueraDeRedException;
+import com.example.ControlNGR.security.RostroException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,12 @@ public class GlobalExceptionHandler {
         logger.warn("Marcacion rechazada fuera de red desde {}", e.getIp());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
                 "error", e.getMessage(), "fueraDeRed", true, "ip", String.valueOf(e.getIp()), "success", false));
+    }
+
+    @ExceptionHandler(RostroException.class)
+    public ResponseEntity<?> rostro(RostroException e) {
+        return ResponseEntity.status(e.getStatus()).body(Map.of(
+                "error", e.getMessage(), "codigoFacial", e.getCodigo(), "success", false));
     }
 
     @ExceptionHandler(AccesoDenegadoException.class)

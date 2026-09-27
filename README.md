@@ -180,6 +180,7 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 - Registro: cada colaborador registra su rostro **una sola vez** desde *Mi perfil*, con consentimiento (Ley 29733). Para volver a registrarlo, su jefatura o el admin lo restablecen desde *Empleados*, donde también pueden registrarlo en persona.
 - Se rechaza registrar un rostro que ya pertenece a otra cuenta y capturas que no son de la misma persona.
 - Cada marcación guarda el método (`facial`/`manual`) y la distancia obtenida.
+- En el panel admin → **Reconocimiento facial** se ve quién tiene rostro registrado y se puede **probar la marcación** (a quién reconoce y con qué distancia) y **probar un registro**, sin registrar asistencia ni guardar rostros. Sirve para calibrar `UMBRAL_FACIAL`.
 
 **Feriados laborados**
 - Si la entrada se marca en un feriado activo, se abonan automáticamente **2 días** de compensación (parámetro `DIAS_POR_FERIADO_LABORADO`), una sola vez por feriado.
@@ -235,6 +236,9 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 | POST | `/api/face/registrar/{empleadoId}` | Registro en persona por su jefatura o el admin |
 | DELETE | `/api/face/{empleadoId}` | Restablecer (jefatura o admin) |
 | GET | `/api/face/registrados` | Ids con rostro registrado (jefaturas y admin) |
+| GET | `/api/face/admin/resumen` | Solo admin: quiénes marcan y si tienen rostro |
+| POST | `/api/face/admin/probar-marcacion` | Solo admin: `{descriptor, empleadoId?}` → a quién reconoce y con qué distancia. **No registra asistencia** |
+| POST | `/api/face/admin/probar-registro` | Solo admin: `{descriptores}` → calidad de las capturas y si el rostro ya pertenece a alguien. **No guarda nada** |
 
 La marcación (`POST /api/asistencia/registrar`) recibe además `descriptor: number[]`. Los errores traen `codigoFacial`: `NO_REGISTRADO`, `FALTA_ROSTRO`, `NO_COINCIDE`, `DESCRIPTOR_INVALIDO`, `YA_REGISTRADO`, `CONSENTIMIENTO`, `MUESTRAS_INCONSISTENTES`, `ROSTRO_DE_OTRO`.
 

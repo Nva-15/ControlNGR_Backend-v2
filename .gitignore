@@ -44,3 +44,7 @@ src/main/resources/static/
 ### Configuracion local y datos ###
 .env
 data/
+
+# Respaldos (contienen datos personales)
+respaldos/
+*.sql.gz

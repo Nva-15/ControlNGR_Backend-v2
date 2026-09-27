@@ -34,7 +34,7 @@ docker compose up -d --build
 - **Solo se publica la web (nginx).** El backend no es accesible desde fuera de Docker y MySQL solo escucha en `127.0.0.1:3307` del servidor, para mantenimiento.
 - **Las tablas y los datos iniciales se crean solos** la primera vez (Flyway, carpeta `src/main/resources/db/migration`).
 - Los datos se guardan en volúmenes de Docker (`db_data`, `img_data` y `evidencias_data`), así que no se pierden al reiniciar ni al actualizar.
-- Para llevar el sistema a otro equipo: clonar ambos repositorios, crear el `.env` y ejecutar el mismo comando.
+- Para llevar el sistema a otro equipo, con sus datos: ver [Respaldo y cambio de equipo](#respaldo-y-cambio-de-equipo).
 
 Actualizar a una versión nueva:
 
@@ -43,11 +43,19 @@ git pull            # en ambos repositorios
 docker compose up -d --build
 ```
 
-Respaldo de la base de datos:
+### Respaldo y cambio de equipo
 
-```bash
-docker exec controlngr-db sh -c 'mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" controlngr' > respaldo.sql
+La base de datos, las fotos de perfil y las evidencias viven en volúmenes de Docker, **no en GitHub**. Son datos personales: si el repositorio se viera comprometido, no deben estar ahí. Para respaldarlos o llevarlos a otro equipo se usan dos scripts (Windows, PowerShell):
+
+```powershell
+# En el equipo actual (con el sistema encendido): genera respaldos\controlngr_AAAAMMDD_HHMM.zip
+powershell -ExecutionPolicy Bypass -File .\scripts\respaldar.ps1
+
+# En el equipo nuevo: clonar ambos repositorios, copiar el .env, y luego
+powershell -ExecutionPolicy Bypass -File .\scripts\restaurar.ps1 -Respaldo D:\ruta\controlngr_AAAAMMDD_HHMM.zip
 ```
+
+El `.zip` contiene la base completa (`controlngr.sql`), las fotos (`img/`) y las evidencias (`evidencias/`). Guárdelo en un lugar seguro; se recomienda generar uno periódicamente.
 
 ### Validación de red y Docker Desktop
 

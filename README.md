@@ -22,6 +22,14 @@ cp .env.example .env        # completar DB_PASSWORD (usuario root de MySQL) y JW
 docker compose up -d --build
 ```
 
+> **Equipos con poca memoria para Docker (2 GB):** construya una parte a la vez para que no compitan por la RAM, y luego levante todo:
+> ```bash
+> docker compose build backend
+> docker compose build frontend
+> docker compose up -d
+> ```
+> Ya en funcionamiento, los tres contenedores usan unos 650 MB. La memoria de Java se ajusta con `BACKEND_JAVA_OPTS` en `.env` (por defecto `-Xms128m -Xmx512m -XX:+UseSerialGC`).
+
 - La web queda en `http://IP-DEL-SERVIDOR` (puerto `APP_PORT`, 80 por defecto).
 - **Solo se publica la web (nginx).** El backend no es accesible desde fuera de Docker y MySQL solo escucha en `127.0.0.1:3307` del servidor, para mantenimiento.
 - **Las tablas y los datos iniciales se crean solos** la primera vez (Flyway, carpeta `src/main/resources/db/migration`).

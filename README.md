@@ -170,13 +170,16 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 
 **Asistencia**
 - Solo se puede marcar desde los segmentos de red registrados. Si no, se responde `403` con el mensaje *"Está fuera de red"* (`fueraDeRed: true`).
-- La entrada solo se permite si el día está programado como laboral en el horario semanal activo o, si no hay uno, en el horario base.
-- **Director, gerente y jefe no tienen horario**: no aparecen en Horarios ni se les puede asignar uno. Marcan cualquier día (horario flexible, sin tardanzas), siempre con validación de red y reconocimiento facial.
+- **Por rol** (panel admin → **Asistencia y horarios**) se configura:
+  - *Marca asistencia*: el rol registra entrada y salida.
+  - *Horario y reporte de asistencia*: el rol recibe horario (aparece en **Horarios**), aparece en el **reporte de asistencia** (y en su filtro de roles) y se le calculan tardanzas.
+  - Un rol que marca **sin** horario tiene horario flexible: marca cualquier día, sin tardanzas. Un rol que no marca tampoco tiene horario.
+  - Valores iniciales: director, gerente y jefe marcan con horario flexible; el resto marca con horario; el admin no marca.
+- Para los roles con horario, la entrada solo se permite si el día está programado como laboral en el horario semanal activo o, si no hay uno, en el horario base. Siempre con validación de red y reconocimiento facial.
 - La fecha y la hora las pone el servidor; los valores que envíe el cliente se ignoran.
 - Cada usuario solo puede marcar su propia asistencia.
-- **Tolerancia de tardanza: 10 minutos** (parámetro `TOLERANCIA_TARDANZA_MINUTOS`, entero de 0 a 120). Se cambia en el panel admin → **Reporte de asistencia** y se aplica igual al marcar y en el reporte.
+- **Tolerancia de tardanza: 10 minutos** (parámetro `TOLERANCIA_TARDANZA_MINUTOS`, entero de 0 a 120). Se cambia en el panel admin → **Asistencia y horarios** y se aplica igual al marcar y en el reporte.
 - La marcación se registra **en cuanto se verifica el rostro**. Después el colaborador ve la hora registrada y puede dejar, si quiere, un **mensaje breve para su supervisor** (hasta 300 caracteres, uno por marcación, dentro de los 30 minutos siguientes). El mensaje aparece en *Reportes de asistencia*.
-- En el panel admin → **Reporte de asistencia** se marca a quiénes se les aplica el reporte (todo el personal con horario viene marcado).
 - **Un empleado inactivo no puede ingresar al sistema**: al desactivarlo también se bloquea su usuario y su sesión abierta deja de funcionar.
 
 **Reconocimiento facial**
@@ -225,6 +228,7 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 |---|---|---|
 | GET | `/api/asistencia/verificar-red` | `{ip, dentroDeRed, mensaje}` para avisar antes de marcar |
 | POST | `/api/asistencia/registrar` | `{tipo: "entrada" \| "salida"}`. Si fue feriado, la respuesta trae `feriado` y `diasCompensacionAbonados` |
+| GET | `/api/asistencia/mi-configuracion` | `{marcaAsistencia, conHorario, toleranciaMinutos}` del usuario |
 | PUT | `/api/asistencia/{id}/mensaje` | `{tipo, mensaje}`: justificación del propio colaborador sobre su marcación (una vez, hasta 30 min después). El reporte trae `mensajeEntrada` y `mensajeSalida` |
 
 ### Solicitudes
@@ -262,7 +266,7 @@ La marcación (`POST /api/asistencia/registrar`) recibe además `descriptor: num
 | GET | `/api/saldos/empleado/{id}` | Para jefaturas, supervisores y admin |
 
 ### Panel admin (`/api/admin/**`, solo rol `admin`)
-`mi-ip` · `parametros` · `segmentos-red` · `feriados` · `departamentos` · `tipos-usuario` · `reglas-aprobacion` · `tipos-solicitud` · `motivos-licencia` · `usuarios` (rol, estado, restablecer contraseña) · `saldos` (listado, `carga-inicial`, `ajuste`, movimientos) · `feriados-laborados` (listado y revertir) · `vacaciones/procesar` · `reporte-asistencia/personal` (GET lista, PUT `{incluidos: [ids]}`).
+`mi-ip` · `parametros` · `segmentos-red` · `feriados` · `departamentos` · `tipos-usuario` · `reglas-aprobacion` · `tipos-solicitud` · `motivos-licencia` · `usuarios` (rol, estado, restablecer contraseña) · `saldos` (listado, `carga-inicial`, `ajuste`, movimientos) · `feriados-laborados` (listado y revertir) · `vacaciones/procesar` · `asistencia/roles` (GET configuración por rol con empleados activos, PUT `/{id}` `{marcaAsistencia, conHorario}`). `GET /api/empleados/roles` también devuelve `marcaAsistencia` y `conHorario`.
 
 Los empleados se registran con `POST /api/empleados` (admin, gerencia y **supervisores**; el supervisor solo registra personal operativo: técnico, HD, NOC y BO). Se crea también su usuario: el DNI como usuario y la contraseña inicial `Soporte26$`, que debe cambiar en su primer ingreso. Solo el admin y la gerencia pueden indicar otro usuario u otra contraseña inicial.
 

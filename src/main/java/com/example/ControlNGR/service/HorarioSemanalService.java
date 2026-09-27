@@ -165,9 +165,9 @@ public class HorarioSemanalService {
             for (Map.Entry<Integer, List<HorarioSemanalDetalle>> entry : porEmpleado.entrySet()) {
                 List<HorarioSemanalDetalle> detallesEmpleado = entry.getValue();
 
-                // Saltar empleados inactivos y a director, gerente y jefe (no tienen horario)
+                // Saltar empleados inactivos y roles sin horario (configurable en el panel admin)
                 if (!detallesEmpleado.isEmpty() && (!Boolean.TRUE.equals(detallesEmpleado.get(0).getEmpleado().getActivo())
-                        || com.example.ControlNGR.security.Roles.esGerencia(detallesEmpleado.get(0).getEmpleado().getRol()))) {
+                        || !detallesEmpleado.get(0).getEmpleado().tieneHorario())) {
                     continue;
                 }
 
@@ -524,9 +524,8 @@ public class HorarioSemanalService {
 
             Empleado empleado = detallesEmpleado.get(0).getEmpleado();
 
-            // Excluir empleados inactivos y a director, gerente y jefe (no tienen horario)
-            if (!Boolean.TRUE.equals(empleado.getActivo())
-                    || com.example.ControlNGR.security.Roles.esGerencia(empleado.getRol())) continue;
+            // Excluir empleados inactivos y roles sin horario (configurable en el panel admin)
+            if (!Boolean.TRUE.equals(empleado.getActivo()) || !empleado.tieneHorario()) continue;
             EmpleadoHorarioSemanalDTO empDTO = new EmpleadoHorarioSemanalDTO(
                     empleado.getId(),
                     empleado.getNombre(),

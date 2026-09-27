@@ -144,8 +144,8 @@ public class AsistenciaService {
      * Si el dia no es laboral (descanso, vacaciones, etc.) o no hay horario, no se permite marcar.
      */
     private LocalTime obtenerEntradaProgramada(Empleado empleado, LocalDate fecha) {
-        // Director, gerente y jefe no tienen horario: marcan cualquier dia y no se consideran tardanzas
-        if (Roles.esGerencia(empleado.getRol())) {
+        // Roles sin horario (configurable en el panel admin): marcan cualquier dia y no tienen tardanzas
+        if (!empleado.tieneHorario()) {
             return null;
         }
         String tipoDia;
@@ -174,6 +174,18 @@ public class AsistenciaService {
     /** Minutos de tolerancia antes de considerar tardanza (editable en el panel admin, 10 por defecto). */
     private int toleranciaMinutos() {
         return Math.max(0, parametroService.entero(ParametroService.TOLERANCIA_TARDANZA_MINUTOS, 10));
+    }
+
+    /** Configuracion de asistencia del usuario autenticado (para la pantalla de inicio). */
+    @Transactional(readOnly = true)
+    public Map<String, Object> miConfiguracion() {
+        Empleado empleado = usuarioActual.empleadoRequerido();
+        var tipo = empleado.getUsuario().getTipoUsuario();
+        Map<String, Object> m = new HashMap<>();
+        m.put("marcaAsistencia", Boolean.TRUE.equals(tipo.getMarcaAsistencia()));
+        m.put("conHorario", tipo.tieneHorario());
+        m.put("toleranciaMinutos", toleranciaMinutos());
+        return m;
     }
 
     /** Tiempo que tiene el empleado para escribir su justificacion despues de marcar. */
@@ -288,7 +300,8 @@ public class AsistenciaService {
         List<ReporteAsistenciaDTO> reporte = new ArrayList<>();
 
         // Obtener empleados activos (excluyendo admin)
-        List<Empleado> empleados = empleadoRepository.findEmpleadosReporteAsistencia();
+        // Solo el personal cuyo rol trabaja con horario (configurable por rol en el panel admin)
+        List<Empleado> empleados = empleadoRepository.findEmpleadosConHorario();
         int tolerancia = toleranciaMinutos();
 
         // Obtener todas las asistencias en el rango

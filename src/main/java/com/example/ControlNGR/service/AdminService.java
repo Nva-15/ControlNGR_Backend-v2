@@ -52,36 +52,51 @@ public class AdminService {
         this.usuarioActual = usuarioActual;
     }
 
-    // ==================== PERSONAL DEL REPORTE DE ASISTENCIA ====================
+    // ==================== ASISTENCIA Y HORARIOS POR ROL ====================
 
-    /** Personal con horario (marca asistencia) y si aparece o no en el reporte de asistencia. */
+    /** Roles del personal con su configuracion de asistencia y cuantos empleados activos tienen. */
     @Transactional(readOnly = true)
-    public List<Map<String, Object>> personalReporteAsistencia() {
-        return empleadoRepository.findEmpleadosConHorario().stream()
-                .sorted(Comparator.comparing(Empleado::getNombre, String.CASE_INSENSITIVE_ORDER))
-                .map(e -> {
+    public List<Map<String, Object>> rolesAsistencia() {
+        Map<String, Long> activos = new HashMap<>();
+        for (Empleado e : empleadoRepository.findByActivo(true)) {
+            if (e.getRol() != null) activos.merge(e.getRol().toLowerCase(), 1L, Long::sum);
+        }
+        return tipoUsuarioRepository.findAllByOrderByNivelJerarquiaDesc().stream()
+                .filter(t -> !Boolean.TRUE.equals(t.getEsSistema()))
+                .map(t -> {
                     Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("id", e.getId());
-                    m.put("nombre", e.getNombre());
-                    m.put("cargo", e.getCargo());
-                    m.put("rol", e.getRol());
-                    m.put("foto", e.getFoto());
-                    m.put("enReporte", !Boolean.FALSE.equals(e.getEnReporteAsistencia()));
+                    m.put("id", t.getId());
+                    m.put("codigo", t.getCodigo());
+                    m.put("nombre", t.getNombre());
+                    m.put("activo", t.getActivo());
+                    m.put("marcaAsistencia", Boolean.TRUE.equals(t.getMarcaAsistencia()));
+                    m.put("conHorario", t.tieneHorario());
+                    m.put("empleados", activos.getOrDefault(t.getCodigo().toLowerCase(), 0L));
                     return m;
                 })
                 .toList();
     }
 
-    /** Guarda quienes aparecen en el reporte: los ids recibidos se incluyen, el resto del personal se excluye. */
+    /**
+     * Configura un rol: si marca asistencia y si trabaja con horario (aparece en Horarios y en el reporte).
+     * Trabajar con horario implica marcar asistencia; quien no marca tampoco tiene horario.
+     */
     @Transactional
-    public List<Map<String, Object>> guardarPersonalReporteAsistencia(Collection<Integer> incluidos) {
-        Set<Integer> ids = incluidos == null ? Set.of() : new HashSet<>(incluidos);
-        List<Empleado> personal = empleadoRepository.findEmpleadosConHorario();
-        for (Empleado e : personal) {
-            e.setEnReporteAsistencia(ids.contains(e.getId()));
+    public List<Map<String, Object>> configurarRolAsistencia(Integer id, Boolean marcaAsistencia, Boolean conHorario) {
+        TipoUsuario t = tipoUsuarioRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Rol no encontrado"));
+        if (Boolean.TRUE.equals(t.getEsSistema())) {
+            throw new IllegalArgumentException("El rol del administrador no marca asistencia");
         }
-        empleadoRepository.saveAll(personal);
-        return personalReporteAsistencia();
+        aplicarAsistencia(t, marcaAsistencia, conHorario);
+        tipoUsuarioRepository.save(t);
+        return rolesAsistencia();
+    }
+
+    private void aplicarAsistencia(TipoUsuario t, Boolean marcaAsistencia, Boolean conHorario) {
+        if (marcaAsistencia != null) t.setMarcaAsistencia(marcaAsistencia);
+        if (conHorario != null) t.setConHorario(conHorario);
+        if (Boolean.TRUE.equals(conHorario)) t.setMarcaAsistencia(true);
+        if (!Boolean.TRUE.equals(t.getMarcaAsistencia())) t.setConHorario(false);
     }
 
     // ==================== SEGMENTOS DE RED ====================
@@ -208,7 +223,10 @@ public class AdminService {
         if (d.containsKey("descripcion")) t.setDescripcion(texto(d, "descripcion"));
         if (d.get("nivelJerarquia") != null) t.setNivelJerarquia(entero(d, "nivelJerarquia"));
         if (d.get("puedeSolicitar") != null) t.setPuedeSolicitar(bool(d, "puedeSolicitar"));
-        if (d.get("marcaAsistencia") != null) t.setMarcaAsistencia(bool(d, "marcaAsistencia"));
+        if (d.get("marcaAsistencia") != null || d.get("conHorario") != null) {
+            aplicarAsistencia(t, d.get("marcaAsistencia") != null ? bool(d, "marcaAsistencia") : null,
+                    d.get("conHorario") != null ? bool(d, "conHorario") : null);
+        }
         if (d.get("activo") != null) t.setActivo(bool(d, "activo"));
         return tipoUsuarioRepository.save(t);
     }

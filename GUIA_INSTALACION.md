@@ -218,7 +218,7 @@ Con muchas PCs, TI puede distribuir `ca.crt` por directiva de grupo (GPO). Si fa
    - **Segmentos de red**: `10.92.104.%` (oficina) y `192.168.113.%` (VPN).
    - **Feriados** del año.
    - **Saldos y carga inicial** de vacaciones y días por compensar.
-   - **Reporte de asistencia**: tolerancia de tardanza (10 minutos por defecto) y el personal al que se aplica el reporte.
+   - **Asistencia y horarios**: qué roles marcan asistencia, cuáles trabajan con horario (aparecen en Horarios y en el reporte de asistencia) y la tolerancia de tardanza (10 minutos por defecto).
 
 > Los empleados nuevos ingresan con su **DNI** y la contraseña inicial **`Soporte26$`**; el sistema les pide cambiarla la primera vez.
 

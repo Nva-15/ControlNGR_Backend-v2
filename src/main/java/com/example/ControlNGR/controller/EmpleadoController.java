@@ -48,12 +48,13 @@ public class EmpleadoController {
                 .toList());
     }
 
-    /** Roles asignables a empleados (sin el rol admin del sistema). */
+    /** Roles asignables a empleados (sin el rol admin del sistema), con su configuracion de asistencia. */
     @GetMapping("/roles")
     public ResponseEntity<?> roles() {
         return ResponseEntity.ok(tipoUsuarioRepository.findAllByOrderByNivelJerarquiaDesc().stream()
                 .filter(t -> !Boolean.TRUE.equals(t.getEsSistema()) && Boolean.TRUE.equals(t.getActivo()))
-                .map(t -> Map.of("codigo", t.getCodigo(), "nombre", t.getNombre(), "nivel", t.getNivelJerarquia()))
+                .map(t -> Map.of("codigo", t.getCodigo(), "nombre", t.getNombre(), "nivel", t.getNivelJerarquia(),
+                        "marcaAsistencia", Boolean.TRUE.equals(t.getMarcaAsistencia()), "conHorario", t.tieneHorario()))
                 .toList());
     }
 

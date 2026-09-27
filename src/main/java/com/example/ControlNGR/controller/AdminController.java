@@ -52,15 +52,16 @@ public class AdminController {
         return ResponseEntity.ok(parametroService.actualizar(clave, body.get("valor")));
     }
 
-    // ---------- Personal incluido en el reporte de asistencia ----------
-    @GetMapping("/reporte-asistencia/personal")
-    public ResponseEntity<?> personalReporteAsistencia() {
-        return ResponseEntity.ok(adminService.personalReporteAsistencia());
+    // ---------- Asistencia y horarios por rol ----------
+    @GetMapping("/asistencia/roles")
+    public ResponseEntity<?> rolesAsistencia() {
+        return ResponseEntity.ok(adminService.rolesAsistencia());
     }
 
-    @PutMapping("/reporte-asistencia/personal")
-    public ResponseEntity<?> guardarPersonalReporteAsistencia(@RequestBody Map<String, List<Integer>> body) {
-        return ResponseEntity.ok(adminService.guardarPersonalReporteAsistencia(body.get("incluidos")));
+    /** {marcaAsistencia, conHorario}: quien marca y quien trabaja con horario (Horarios y reporte de asistencia). */
+    @PutMapping("/asistencia/roles/{id}")
+    public ResponseEntity<?> configurarRolAsistencia(@PathVariable("id") Integer id, @RequestBody Map<String, Boolean> body) {
+        return ResponseEntity.ok(adminService.configurarRolAsistencia(id, body.get("marcaAsistencia"), body.get("conHorario")));
     }
 
     /** IP con la que el servidor ve al equipo del administrador (para configurar segmentos). */

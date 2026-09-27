@@ -108,6 +108,14 @@ public class WebSecurityConfig {
                 // Imagenes de perfil
                 .requestMatchers("/api/imagenes/**").hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
 
+                // Listados y reportes de todo el personal: solo quienes tienen personal a cargo
+                .requestMatchers(HttpMethod.GET, "/api/asistencia", "/api/asistencia/fecha/**", "/api/asistencia/rango",
+                        "/api/asistencia/hoy", "/api/asistencia/reporte/rango",
+                        "/api/solicitudes/todas", "/api/solicitudes/pendientes", "/api/solicitudes/historial",
+                        "/api/solicitudes/exportar/**")
+                    .hasAnyRole(Roles.AUTH_GESTION)
+                .requestMatchers(HttpMethod.POST, "/api/asistencia/verificar-salidas").hasAnyRole(Roles.AUTH_GESTION)
+
                 // Asistencia, solicitudes, saldos y notificaciones: solo personal (el admin no marca ni solicita)
                 .requestMatchers("/api/asistencia/**", "/api/solicitudes/**", "/api/saldos/**", "/api/notificaciones/**")
                     .hasAnyRole(Roles.AUTH_PERSONAL)

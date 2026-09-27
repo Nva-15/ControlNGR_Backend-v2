@@ -39,4 +39,17 @@ public class UsuarioActual {
         }
         return empleado;
     }
+
+    /**
+     * Permite ver datos de un empleado solo a el mismo o a quien tiene personal a cargo
+     * (director, gerente, jefe, supervisor, gestor).
+     */
+    public void validarAccesoAEmpleado(Integer empleadoId) {
+        Usuario usuario = requerido();
+        if (Roles.esGestion(usuario.getRol())) return;
+        Empleado propio = usuario.getEmpleado();
+        if (propio == null || !propio.getId().equals(empleadoId)) {
+            throw new AccesoDenegadoException("Solo puede consultar su propia información");
+        }
+    }
 }

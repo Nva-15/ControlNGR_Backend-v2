@@ -54,15 +54,36 @@ public final class Roles {
         return rol != null && GESTION.contains(rol.toLowerCase());
     }
 
-    /** Si el rol editor puede administrar (editar/activar/eliminar) a un empleado con rol objetivo. */
+    /** Rango jerarquico dentro de gerencia: director 3, gerente 2, jefe 1, el resto 0. */
+    public static int rango(String rol) {
+        if (rol == null) return 0;
+        return switch (rol.toLowerCase()) {
+            case DIRECTOR -> 3;
+            case GERENTE -> 2;
+            case JEFE -> 1;
+            default -> 0;
+        };
+    }
+
+    /**
+     * Si el rol editor puede administrar (editar/activar/eliminar) a un empleado con rol objetivo.
+     * La gerencia solo administra a rangos inferiores al suyo.
+     */
     public static boolean puedeAdministrar(String rolEditor, String rolObjetivo) {
         if (rolEditor == null) return false;
         String editor = rolEditor.toLowerCase();
         String objetivo = rolObjetivo != null ? rolObjetivo.toLowerCase() : "";
-        if (esAdmin(editor) || esGerencia(editor)) return true;
+        if (esAdmin(editor)) return true;
+        if (esGerencia(editor)) return !esAdmin(objetivo) && rango(objetivo) < rango(editor);
         if (SUPERVISOR.equals(editor)) return OPERATIVOS.contains(objetivo);
         if (GESTOR.equals(editor)) return ASISTENTE.equals(objetivo);
         return false;
+    }
+
+    /** Si el rol editor puede asignar el rol indicado a un empleado (crear o cambiar rol). */
+    public static boolean puedeAsignarRol(String rolEditor, String rolNuevo) {
+        if (esAdmin(rolEditor)) return true;
+        return esGerencia(rolEditor) && rango(rolNuevo) < rango(rolEditor);
     }
 
     private static String[] concat(String[] base, String extra) {

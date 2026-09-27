@@ -10,6 +10,7 @@ import com.example.ControlNGR.dto.AsistenciaResponseDTO;
 import com.example.ControlNGR.dto.ReporteAsistenciaDTO;
 import com.example.ControlNGR.security.AccesoDenegadoException;
 import com.example.ControlNGR.security.FueraDeRedException;
+import com.example.ControlNGR.security.UsuarioActual;
 import com.example.ControlNGR.service.AsistenciaService;
 import com.example.ControlNGR.service.RedService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,6 +27,9 @@ public class AsistenciaController {
     
     @Autowired
     private RedService redService;
+
+    @Autowired
+    private UsuarioActual usuarioActual;
 
     @PostMapping("/registrar")
     public ResponseEntity<?> registrarAsistencia(@RequestBody AsistenciaRequestDTO request, HttpServletRequest http) {
@@ -64,6 +68,7 @@ public class AsistenciaController {
     @GetMapping("/empleado/{empleadoId}")
     public ResponseEntity<List<AsistenciaResponseDTO>> obtenerAsistenciasPorEmpleado(
             @PathVariable("empleadoId") Integer empleadoId) {
+        usuarioActual.validarAccesoAEmpleado(empleadoId);
         List<AsistenciaResponseDTO> asistencias = asistenciaService.obtenerAsistenciasPorEmpleado(empleadoId);
         return ResponseEntity.ok(asistencias);
     }
@@ -91,6 +96,7 @@ public class AsistenciaController {
             @PathVariable("empleadoId") Integer empleadoId,
             @RequestParam("year") int year,
             @RequestParam("month") int month) {
+        usuarioActual.validarAccesoAEmpleado(empleadoId);
         List<AsistenciaResponseDTO> asistencias = asistenciaService.obtenerReporteMensual(empleadoId, year, month);
         return ResponseEntity.ok(asistencias);
     }

@@ -61,9 +61,10 @@ public class HorarioSemanalService {
         }
         logger.debug("No hay solapamiento con otras semanas");
 
-        Empleado creadoPor = empleadoRepository.findById(request.getCreadoPorId())
-                .orElseThrow(() -> new RuntimeException("Empleado creador no encontrado con ID: " + request.getCreadoPorId()));
-        logger.debug("Empleado creador encontrado: {}", creadoPor.getNombre());
+        // El creador es opcional: el administrador del sistema no es empleado
+        Empleado creadoPor = request.getCreadoPorId() == null ? null
+                : empleadoRepository.findById(request.getCreadoPorId())
+                    .orElseThrow(() -> new RuntimeException("Empleado creador no encontrado con ID: " + request.getCreadoPorId()));
 
         // Crear la semana
         HorarioSemanal semana = new HorarioSemanal(request.getFechaInicio(), request.getFechaFin(), creadoPor);
@@ -105,7 +106,7 @@ public class HorarioSemanalService {
         HorarioSemanalRequestDTO request = new HorarioSemanalRequestDTO();
         request.setFechaInicio(nuevaFechaInicio);
         request.setFechaFin(nuevaFechaFin);
-        request.setCreadoPorId(semanaOrigen.getCreadoPor().getId());
+        request.setCreadoPorId(semanaOrigen.getCreadoPor() != null ? semanaOrigen.getCreadoPor().getId() : null);
         request.setCopiarDeId(semanaOrigenId);
 
         return generarSemana(request);

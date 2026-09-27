@@ -350,6 +350,12 @@ public class SolicitudService {
         return motivoLicenciaRepository.findByActivoTrueOrderByNombreAsc();
     }
 
+    /** Roles cuyas solicitudes aprueba el usuario autenticado (segun reglas_aprobacion). */
+    @Transactional(readOnly = true)
+    public List<String> rolesACargo() {
+        return reglaRepository.rolesQueAprueba(usuarioActual.empleadoRequerido().getRol());
+    }
+
     /** Pendientes que el usuario autenticado puede aprobar. */
     @Transactional(readOnly = true)
     public List<SolicitudResponseDTO> obtenerPendientesPorAprobar() {
@@ -449,8 +455,8 @@ public class SolicitudService {
                 .toList();
         if (!propias.isEmpty()) {
             Solicitud s = propias.get(0);
-            throw new IllegalStateException("Ya tiene una solicitud " + s.getEstado() + " de " + s.getTipo()
-                    + " en ese rango (" + rango(s) + ")");
+            throw new IllegalStateException("Ya tiene una solicitud " + s.getEstado() + " de "
+                    + s.getTipoSolicitud().getNombre().toLowerCase() + " que se cruza con esas fechas (" + rango(s) + ")");
         }
     }
 

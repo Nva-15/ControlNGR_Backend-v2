@@ -391,10 +391,11 @@ public class HorarioService {
         return time != null ? time.format(TIME_FORMATTER) : null;
     }
 
-    /** Director, gerente y jefe no tienen horario (marcan con horario flexible). */
+    /** Solo los roles configurados "con horario" en el panel admin reciben horario. */
     private void validarTieneHorario(Empleado empleado) {
-        if (com.example.ControlNGR.security.Roles.esGerencia(empleado.getRol())) {
-            throw new RuntimeException("El director, el gerente y el jefe no tienen horario asignado");
+        if (!empleado.tieneHorario()) {
+            String rol = empleado.getUsuario().getTipoUsuario().getNombre();
+            throw new RuntimeException("El rol " + rol + " no trabaja con horario (se configura en el panel admin → Asistencia y horarios)");
         }
     }
 }

@@ -60,6 +60,12 @@ public class AsistenciaController {
         }
     }
 
+    /** Si el usuario marca asistencia, si tiene horario (o es flexible) y la tolerancia vigente. */
+    @GetMapping("/mi-configuracion")
+    public ResponseEntity<?> miConfiguracion() {
+        return ResponseEntity.ok(asistenciaService.miConfiguracion());
+    }
+
     /** Indica si el equipo actual esta dentro de la red permitida (para mostrarlo antes de marcar). */
     @GetMapping("/verificar-red")
     public ResponseEntity<?> verificarRed(HttpServletRequest http) {

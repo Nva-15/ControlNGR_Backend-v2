@@ -60,10 +60,6 @@ public class Empleado {
     @Column(name = "activo", nullable = false)
     private Boolean activo = true;
 
-    /** Si aparece en el reporte de asistencia (se marca desde el panel admin). */
-    @Column(name = "en_reporte_asistencia", nullable = false)
-    private Boolean enReporteAsistencia = true;
-
     @Column(name = "identificador", length = 50, unique = true)
     private String identificador;
 
@@ -147,6 +143,10 @@ public class Empleado {
 
     public Usuario getUsuario() { return usuario; }
     public void setUsuario(Usuario usuario) { this.usuario = usuario; }
-    public Boolean getEnReporteAsistencia() { return enReporteAsistencia; }
-    public void setEnReporteAsistencia(Boolean enReporteAsistencia) { this.enReporteAsistencia = enReporteAsistencia; }
+
+    /** Su rol trabaja con horario (configurable por rol en el panel admin). Sin usuario: se asume que si. */
+    @JsonIgnore
+    public boolean tieneHorario() {
+        return usuario == null || usuario.getTipoUsuario() == null || usuario.getTipoUsuario().tieneHorario();
+    }
 }

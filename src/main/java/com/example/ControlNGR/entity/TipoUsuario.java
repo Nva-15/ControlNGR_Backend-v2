@@ -28,6 +28,11 @@ public class TipoUsuario {
     @Column(name = "marca_asistencia", nullable = false)
     private Boolean marcaAsistencia = true;
 
+    /** Tiene horario: aparece en Horarios y en el reporte de asistencia, y se le calculan tardanzas.
+     *  Si marca asistencia sin horario, tiene horario flexible (marca cualquier dia). */
+    @Column(name = "con_horario", nullable = false)
+    private Boolean conHorario = true;
+
     @Column(name = "es_sistema", nullable = false)
     private Boolean esSistema = false;
 
@@ -54,6 +59,14 @@ public class TipoUsuario {
 
     public Boolean getMarcaAsistencia() { return marcaAsistencia; }
     public void setMarcaAsistencia(Boolean marcaAsistencia) { this.marcaAsistencia = marcaAsistencia; }
+
+    public Boolean getConHorario() { return conHorario; }
+    public void setConHorario(Boolean conHorario) { this.conHorario = conHorario; }
+
+    /** Marca asistencia y trabaja con horario (aparece en Horarios y en el reporte de asistencia). */
+    public boolean tieneHorario() {
+        return Boolean.TRUE.equals(marcaAsistencia) && Boolean.TRUE.equals(conHorario);
+    }
 
     public Boolean getEsSistema() { return esSistema; }
     public void setEsSistema(Boolean esSistema) { this.esSistema = esSistema; }

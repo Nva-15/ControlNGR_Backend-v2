@@ -14,12 +14,12 @@ Requisitos: Docker (Engine con el plugin `compose`, o Docker Desktop) y los **do
 
 ```
 carpeta/
-├── ControlNGR_Backend-v3/     ← aquí están docker-compose.yml y .env
-└── ControlNGR_Frontend-v3/
+├── ControlNGR_Backend-v2/     ← aquí están docker-compose.yml y .env
+└── ControlNGR_Frontend-v2/
 ```
 
 ```bash
-cd ControlNGR_Backend-v3
+cd ControlNGR_Backend-v2
 cp .env.example .env        # completar DB_PASSWORD, JWT_SECRET y SERVIDOR_IP
 docker compose up -d --build
 ```
@@ -88,7 +88,7 @@ Antes el sistema usaba XAMPP (Apache + MariaDB/MySQL + phpMyAdmin). Ahora la bas
 2. **Detener XAMPP:** en el panel de XAMPP detener *Apache* y *MySQL* y desmarcarlos como servicio de Windows. Si Apache sigue activo ocupa el puerto 80 y la web no podrá iniciar (o cambie `APP_PORT` en `.env`, por ejemplo `APP_PORT=8081`). El MySQL de Docker usa el puerto `3307`, así que no choca con el de XAMPP.
 3. **Instalar Docker Desktop** (en Windows con WSL 2) y levantar el sistema:
    ```powershell
-   cd ControlNGR_Backend-v3
+   cd ControlNGR_Backend-v2
    copy .env.example .env      # completar DB_PASSWORD y JWT_SECRET
    docker compose up -d --build
    ```

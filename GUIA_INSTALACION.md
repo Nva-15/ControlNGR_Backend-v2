@@ -1,4 +1,4 @@
-# Guía de instalación de Control NGR v3 en un equipo de la empresa
+# Guía de instalación de Control NGR en un equipo de la empresa
 
 Guía paso a paso para instalar el sistema en el equipo (servidor) donde quedará funcionando para todos.
 Solo se necesita saber abrir una terminal y copiar comandos.
@@ -18,7 +18,7 @@ Solo se necesita saber abrir una terminal y copiar comandos.
 - 2 núcleos de CPU, 4 GB de RAM libres para Docker y 20 GB de disco libre.
 - **IP fija** dentro de la red de la oficina (pedirla al área de redes). Ejemplo: `10.92.104.20`.
 - Acceso a internet durante la instalación (para descargar Docker y los programas).
-- Acceso a los dos repositorios de GitHub (`ControlNGR_Backend-v3` y `ControlNGR_Frontend-v3`).
+- Acceso a los dos repositorios de GitHub (`ControlNGR_Backend-v2` y `ControlNGR_Frontend-v2`).
 - Que el equipo quede encendido siempre (es el servidor).
 - Las PCs donde se marca asistencia necesitan **cámara web** (la marcación es con reconocimiento facial).
 
@@ -52,20 +52,20 @@ docker compose version
 sudo mkdir -p /opt/controlngr
 sudo chown $USER /opt/controlngr
 cd /opt/controlngr
-git clone https://github.com/Nva-15/ControlNGR_Backend-v3.git
-git clone https://github.com/Nva-15/ControlNGR_Frontend-v3.git
+git clone https://github.com/Nva-15/ControlNGR_Backend-v2.git
+git clone https://github.com/Nva-15/ControlNGR_Frontend-v2.git
 ```
 
 GitHub pedirá usuario y un *token* de acceso (no la contraseña normal).
 
 ### A3. Crear el archivo `.env`
 
-Si trae el `.env` de otro equipo, cópielo a `/opt/controlngr/ControlNGR_Backend-v3/.env` y pase al paso A4.
+Si trae el `.env` de otro equipo, cópielo a `/opt/controlngr/ControlNGR_Backend-v2/.env` y pase al paso A4.
 
 Si no, créelo:
 
 ```bash
-cd /opt/controlngr/ControlNGR_Backend-v3
+cd /opt/controlngr/ControlNGR_Backend-v2
 cp .env.example .env
 openssl rand -hex 48        # copie el texto que aparece: es su JWT_SECRET
 nano .env
@@ -90,7 +90,7 @@ chmod 600 .env
 ### A4. Encender el sistema
 
 ```bash
-cd /opt/controlngr/ControlNGR_Backend-v3
+cd /opt/controlngr/ControlNGR_Backend-v2
 docker compose up -d --build
 ```
 
@@ -139,18 +139,18 @@ git --version
 ```powershell
 mkdir C:\ControlNGR
 cd C:\ControlNGR
-git clone https://github.com/Nva-15/ControlNGR_Backend-v3.git
-git clone https://github.com/Nva-15/ControlNGR_Frontend-v3.git
+git clone https://github.com/Nva-15/ControlNGR_Backend-v2.git
+git clone https://github.com/Nva-15/ControlNGR_Frontend-v2.git
 ```
 
 ### B3. Crear el archivo `.env`
 
-Si trae el `.env` de otro equipo, cópielo a `C:\ControlNGR\ControlNGR_Backend-v3\.env` y pase al paso B4.
+Si trae el `.env` de otro equipo, cópielo a `C:\ControlNGR\ControlNGR_Backend-v2\.env` y pase al paso B4.
 
 Si no:
 
 ```powershell
-cd C:\ControlNGR\ControlNGR_Backend-v3
+cd C:\ControlNGR\ControlNGR_Backend-v2
 copy .env.example .env
 $b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); ($b | % { $_.ToString('x2') }) -join ''
 notepad .env
@@ -177,7 +177,7 @@ dir -Force .env*
 Con poca memoria es mejor construir una parte a la vez:
 
 ```powershell
-cd C:\ControlNGR\ControlNGR_Backend-v3
+cd C:\ControlNGR\ControlNGR_Backend-v2
 docker compose --progress plain build frontend
 docker compose --progress plain build backend
 docker compose up -d
@@ -202,7 +202,7 @@ La web funciona con `https://` (el navegador exige conexión segura para usar la
 
 En **cada PC** que usará el sistema (incluido el servidor):
 
-1. Copie `ca.crt` (de `ControlNGR_Backend-v3\certs\`) a la PC, por USB o carpeta compartida.
+1. Copie `ca.crt` (de `ControlNGR_Backend-v2\certs\`) a la PC, por USB o carpeta compartida.
 2. Doble clic en `ca.crt` → **Instalar certificado** → *Equipo local* → *Colocar todos los certificados en el siguiente almacén* → **Entidades de certificación raíz de confianza** → Finalizar.
 3. Cierre y vuelva a abrir el navegador.
 
@@ -248,9 +248,9 @@ Luego, en **Inicio**, los botones *Marcar entrada / salida* abren la cámara y v
 
 ## 7. Uso diario
 
-Todos los comandos se ejecutan **dentro de la carpeta `ControlNGR_Backend-v3`**:
-- Linux: `cd /opt/controlngr/ControlNGR_Backend-v3`
-- Windows: `cd C:\ControlNGR\ControlNGR_Backend-v3`
+Todos los comandos se ejecutan **dentro de la carpeta `ControlNGR_Backend-v2`**:
+- Linux: `cd /opt/controlngr/ControlNGR_Backend-v2`
+- Windows: `cd C:\ControlNGR\ControlNGR_Backend-v2`
 
 | Quiero… | Comando |
 |---|---|
@@ -296,7 +296,7 @@ crontab -e
 Agregue al final esta línea y guarde:
 
 ```
-0 23 * * * cd /opt/controlngr/ControlNGR_Backend-v3 && sh scripts/respaldar.sh >> respaldos/respaldo.log 2>&1
+0 23 * * * cd /opt/controlngr/ControlNGR_Backend-v2 && sh scripts/respaldar.sh >> respaldos/respaldo.log 2>&1
 ```
 
 ---
@@ -305,7 +305,7 @@ Agregue al final esta línea y guarde:
 
 | Problema | Solución |
 |---|---|
-| `no configuration file provided` | No está en la carpeta correcta. Entre a `ControlNGR_Backend-v3` |
+| `no configuration file provided` | No está en la carpeta correcta. Entre a `ControlNGR_Backend-v2` |
 | `port is already allocated` (puerto 80 o 443 ocupado) | Otro programa usa el puerto (Apache/XAMPP, IIS). Deténgalo, o cambie `APP_PORT`/`HTTPS_PORT` en `.env` (ej. `HTTPS_PORT=8443`) y entre por `https://IP:8443` |
 | `required variable DB_PASSWORD is missing` | Falta el archivo `.env` o la línea `DB_PASSWORD` |
 | La construcción se queda detenida o falla con `rpc error ... EOF` | Falta memoria. En Windows asigne más memoria a Docker o construya una parte a la vez (paso B4) |
@@ -320,7 +320,7 @@ Agregue al final esta línea y guarde:
 
 ### Restablecer la contraseña de admin
 
-Vuelve a dejarla en `$.4dmin2026` y el sistema pedirá cambiarla al ingresar. Desde la carpeta `ControlNGR_Backend-v3` (igual en Linux y Windows):
+Vuelve a dejarla en `$.4dmin2026` y el sistema pedirá cambiarla al ingresar. Desde la carpeta `ControlNGR_Backend-v2` (igual en Linux y Windows):
 
 ```
 docker cp scripts/restablecer-admin.sql controlngr-db:/tmp/restablecer-admin.sql

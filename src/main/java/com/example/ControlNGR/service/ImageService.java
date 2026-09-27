@@ -111,20 +111,25 @@ public class ImageService {
                 bytes.length > 3 ? bytes[3] : 0) + ")";
     }
 
+    /**
+     * Nombre unico por subida (nombre del empleado + fecha y hora), sin tildes ni espacios.
+     * Al ser distinto cada vez, nunca coincide con la foto anterior y el navegador no
+     * muestra una version en cache.
+     */
     private String generarNombreArchivo(String nombreBase, String extension) {
-        String nombreLimpio = nombreBase.toLowerCase()
-                .replaceAll("[^a-z0-9áéíóúüñ]", "_")
+        String nombreLimpio = java.text.Normalizer.normalize(nombreBase.toLowerCase(), java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .replaceAll("[^a-z0-9]", "_")
                 .replaceAll("_{2,}", "_")
                 .replaceAll("^_|_$", "");
+        if (nombreLimpio.isEmpty()) nombreLimpio = "foto";
 
-        String nombreArchivo = nombreLimpio + extension;
-        Path rutaCompleta = Paths.get(normalizarRuta(), nombreArchivo);
-
+        String marca = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+        String base = nombreLimpio + "_" + marca;
+        String nombreArchivo = base + extension;
         int contador = 1;
-        while (Files.exists(rutaCompleta)) {
-            nombreArchivo = nombreLimpio + "_" + contador + extension;
-            rutaCompleta = Paths.get(normalizarRuta(), nombreArchivo);
-            contador++;
+        while (Files.exists(Paths.get(normalizarRuta(), nombreArchivo))) {
+            nombreArchivo = base + "_" + contador++ + extension;
         }
         return nombreArchivo;
     }

@@ -76,7 +76,9 @@ public class ImageController {
             
             // Eliminar imagen anterior si existe (excepto la predeterminada)
             String imagenAnterior = empleado.getFoto();
-            if (imagenAnterior != null && !imagenAnterior.equals("img/perfil.png")) {
+            // Nunca borrar el archivo recien guardado aunque el nombre coincida
+            if (imagenAnterior != null && !imagenAnterior.equals("img/perfil.png")
+                    && !imagenAnterior.equals(nombreArchivo)) {
                 try {
                     imageService.eliminarImagenAnterior(imagenAnterior);
                 } catch (Exception e) {

@@ -66,6 +66,7 @@ public class EventoService {
         evento.setEnlace(normalizarEnlace(request.getEnlace()));
         evento.setCreadoPor(creador);
         evento.setEstado(EstadoEvento.BORRADOR);
+        aplicarInicio(evento, request);
 
         // Configurar roles visibles
         if (request.getRolesVisibles() != null && !request.getRolesVisibles().isEmpty()) {
@@ -110,6 +111,7 @@ public class EventoService {
         evento.setPermiteComentarios(request.getPermiteComentarios());
         evento.setRequiereRespuesta(request.getRequiereRespuesta());
         evento.setEnlace(normalizarEnlace(request.getEnlace()));
+        aplicarInicio(evento, request);
 
         if (request.getRolesVisibles() != null) {
             evento.setRolesVisiblesList(request.getRolesVisibles());
@@ -126,6 +128,26 @@ public class EventoService {
         }
 
         return new EventoResponseDTO(eventoRepository.save(evento));
+    }
+
+    /**
+     * "Publicar ahora": el evento empieza en este momento (hora del servidor, no la del navegador)
+     * y queda publicado. Si no, se exige una fecha de inicio. En ambos casos el fin debe ser posterior.
+     */
+    private void aplicarInicio(Evento evento, EventoRequestDTO request) {
+        if (Boolean.TRUE.equals(request.getIniciarAhora())) {
+            LocalDateTime ahora = LocalDateTime.now().withSecond(0).withNano(0);
+            if (request.getFechaFin() != null && !request.getFechaFin().isAfter(LocalDateTime.now())) {
+                throw new IllegalArgumentException("La fecha de fin debe ser posterior a este momento");
+            }
+            evento.setFechaInicio(ahora);
+            evento.setEstado(EstadoEvento.ACTIVO);
+        } else if (evento.getFechaInicio() == null) {
+            throw new IllegalArgumentException("La fecha de inicio es requerida");
+        }
+        if (evento.getFechaFin() != null && evento.getFechaFin().isBefore(evento.getFechaInicio())) {
+            throw new IllegalArgumentException("La fecha de fin no puede ser anterior a la de inicio");
+        }
     }
 
     @Transactional

@@ -15,6 +15,8 @@ public class EventoRequestDTO {
     private List<String> opciones; // Para encuestas de opción múltiple
     private String enlace; // Opcional: URL http(s) para ingresar con un clic
     private Integer creadoPorId;
+    /** true: se publica al guardar y empieza en ese momento (hora del servidor); se ignora fechaInicio. */
+    private Boolean iniciarAhora = false;
 
     // Getters y Setters
     public String getTitulo() { return titulo; }
@@ -49,4 +51,6 @@ public class EventoRequestDTO {
 
     public String getEnlace() { return enlace; }
     public void setEnlace(String enlace) { this.enlace = enlace; }
+    public Boolean getIniciarAhora() { return iniciarAhora; }
+    public void setIniciarAhora(Boolean iniciarAhora) { this.iniciarAhora = iniciarAhora; }
 }

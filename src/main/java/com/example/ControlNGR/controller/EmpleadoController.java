@@ -1,6 +1,10 @@
 package com.example.ControlNGR.controller;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
@@ -29,10 +33,15 @@ public class EmpleadoController {
     private final UsuarioActual usuarioActual;
     private final DepartamentoRepository departamentoRepository;
     private final TipoUsuarioRepository tipoUsuarioRepository;
+    private final ObjectMapper objectMapper;
+
+    /** Datos que solo ven el propio colaborador, quienes lo administran y el admin (Ley 29733). */
+    private static final Set<String> DATOS_RESERVADOS = Set.of("dni", "username", "usuarioActivo");
 
     public EmpleadoController(EmpleadoService empleadoService, UsuarioActual usuarioActual,
                               DepartamentoRepository departamentoRepository,
-                              TipoUsuarioRepository tipoUsuarioRepository) {
+                              TipoUsuarioRepository tipoUsuarioRepository, ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
         this.empleadoService = empleadoService;
         this.usuarioActual = usuarioActual;
         this.departamentoRepository = departamentoRepository;
@@ -58,10 +67,30 @@ public class EmpleadoController {
                 .toList());
     }
 
+    /**
+     * Vista de un empleado segun quien consulta: el DNI y el usuario (que es el DNI) solo los ven
+     * el propio colaborador, quienes lo administran y el admin. El resto del personal ve los datos
+     * del directorio (nombre, cargo, area, foto, cumpleaños).
+     */
+    private Object vista(Empleado empleado, Usuario lector) {
+        if (Roles.esAdmin(lector.getRol()) || esMismoPerfil(lector, empleado)
+                || Roles.puedeAdministrar(lector.getRol(), empleado.getRol())) {
+            return empleado;
+        }
+        Map<String, Object> m = objectMapper.convertValue(empleado, new TypeReference<LinkedHashMap<String, Object>>() {});
+        DATOS_RESERVADOS.forEach(m::remove);
+        return m;
+    }
+
+    private List<Object> vistas(List<Empleado> empleados) {
+        Usuario lector = usuarioActual.requerido();
+        return empleados.stream().map(e -> vista(e, lector)).toList();
+    }
+
     /** Obtiene todos los empleados. */
     @GetMapping
-    public ResponseEntity<List<Empleado>> getAllEmpleados() {
-        return ResponseEntity.ok(empleadoService.findAll());
+    public ResponseEntity<List<Object>> getAllEmpleados() {
+        return ResponseEntity.ok(vistas(empleadoService.findAll()));
     }
 
     /** Obtiene un empleado por ID. */
@@ -69,7 +98,7 @@ public class EmpleadoController {
     public ResponseEntity<?> getEmpleadoById(@PathVariable("id") Integer id) {
         Optional<Empleado> empleado = empleadoService.findById(id);
         if (empleado.isPresent()) {
-            return ResponseEntity.ok(empleado.get());
+            return ResponseEntity.ok(vista(empleado.get(), usuarioActual.requerido()));
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of("error", "Empleado no encontrado"));
@@ -174,17 +203,17 @@ public class EmpleadoController {
 
     /** Busca empleados por nombre. */
     @GetMapping("/buscar")
-    public ResponseEntity<List<Empleado>> buscarEmpleados(@RequestParam("nombre") String nombre) {
+    public ResponseEntity<List<Object>> buscarEmpleados(@RequestParam("nombre") String nombre) {
         List<Empleado> empleados = empleadoService.findAll().stream()
                 .filter(e -> e.getNombre().toLowerCase().contains(nombre.toLowerCase()))
                 .toList();
-        return ResponseEntity.ok(empleados);
+        return ResponseEntity.ok(vistas(empleados));
     }
 
     /** Obtiene empleados por rol. */
     @GetMapping("/rol/{rol}")
-    public ResponseEntity<List<Empleado>> getEmpleadosByRol(@PathVariable("rol") String rol) {
-        return ResponseEntity.ok(empleadoService.findByRol(rol));
+    public ResponseEntity<List<Object>> getEmpleadosByRol(@PathVariable("rol") String rol) {
+        return ResponseEntity.ok(vistas(empleadoService.findByRol(rol)));
     }
 
     /** Obtiene el perfil del usuario autenticado. */

@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -82,8 +83,9 @@ public class JWTUtil {
             logger.error("Token no soportado: {}", e.getMessage());
         } catch (MalformedJwtException e) {
             logger.error("Token malformado: {}", e.getMessage());
-        } catch (SecurityException e) {
-            logger.error("Error de seguridad con el token: {}", e.getMessage());
+        } catch (JwtException e) {
+            // Firma invalida (token alterado) u otro problema del token: se rechaza sin romper la peticion
+            logger.warn("Token rechazado: {}", e.getMessage());
         } catch (IllegalArgumentException e) {
             logger.error("Token vacío o nulo: {}", e.getMessage());
         }

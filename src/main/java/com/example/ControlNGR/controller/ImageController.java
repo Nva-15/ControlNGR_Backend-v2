@@ -103,11 +103,13 @@ public class ImageController {
             return ResponseEntity.badRequest()
                     .body(Map.of("error", e.getMessage(), "success", false));
         } catch (IOException e) {
+            logger.error("Error al subir la imagen del empleado {}: {}", empleadoId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al subir la imagen: " + e.getMessage(), "success", false));
+                    .body(Map.of("error", "No se pudo guardar la imagen. Intente con otro archivo.", "success", false));
         } catch (Exception e) {
+            logger.error("Error inesperado al subir imagen", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error interno: " + e.getMessage(), "success", false));
+                    .body(Map.of("error", "Error interno al subir la imagen", "success", false));
         }
     }
     
@@ -122,7 +124,7 @@ public class ImageController {
             ));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al verificar imagen: " + e.getMessage()));
+                    .body(Map.of("error", "Error al verificar la imagen"));
         }
     }
 }

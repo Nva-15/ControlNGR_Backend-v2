@@ -104,6 +104,17 @@ public class AdminController {
         return ResponseEntity.status(HttpStatus.CREATED).body(adminService.guardarFeriado(null, body));
     }
 
+    /** {origen, destino, simular, ids?}: copia los feriados de un año a otro (Semana Santa se recalcula). */
+    @PostMapping("/feriados/copiar")
+    public ResponseEntity<?> copiarFeriados(@RequestBody Map<String, Object> body) {
+        Integer origen = body.get("origen") == null ? null : Integer.valueOf(body.get("origen").toString());
+        Integer destino = body.get("destino") == null ? null : Integer.valueOf(body.get("destino").toString());
+        boolean simular = Boolean.parseBoolean(String.valueOf(body.get("simular")));
+        List<Integer> ids = body.get("ids") instanceof List<?> l
+                ? l.stream().map(x -> Integer.valueOf(x.toString())).toList() : null;
+        return ResponseEntity.ok(adminService.copiarFeriados(origen, destino, simular, ids));
+    }
+
     @PutMapping("/feriados/{id}")
     public ResponseEntity<?> actualizarFeriado(@PathVariable("id") Integer id, @RequestBody Map<String, Object> body) {
         return ResponseEntity.ok(adminService.guardarFeriado(id, body));

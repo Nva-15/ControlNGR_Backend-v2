@@ -55,6 +55,8 @@ public class EventoController {
 
             EventoResponseDTO response = eventoService.actualizarEvento(id, request, empleadoId);
             return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("error", e.getMessage()));

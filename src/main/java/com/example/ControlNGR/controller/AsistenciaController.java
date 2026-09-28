@@ -35,6 +35,9 @@ public class AsistenciaController {
     @PostMapping("/registrar")
     public ResponseEntity<?> registrarAsistencia(@RequestBody AsistenciaRequestDTO request, HttpServletRequest http) {
         try {
+            // Primero se cierran (y guardan) las jornadas vencidas: una salida pendiente de hace mas de
+            // N horas no debe quedar abierta aunque esta marcacion falle
+            asistenciaService.verificarSalidasAutomaticas();
             AsistenciaResponseDTO response = asistenciaService.registrarAsistencia(request, redService.ipCliente(http));
             return ResponseEntity.ok(response);
         } catch (FueraDeRedException | AccesoDenegadoException | RostroException e) {
@@ -143,8 +146,8 @@ public class AsistenciaController {
     @PostMapping("/verificar-salidas")
     public ResponseEntity<?> verificarSalidasAutomaticas() {
         try {
-            asistenciaService.verificarSalidasAutomaticas();
-            return ResponseEntity.ok(Map.of("message", "Verificación de salidas automáticas completada"));
+            int cerradas = asistenciaService.verificarSalidasAutomaticas();
+            return ResponseEntity.ok(Map.of("message", "Verificación de salidas automáticas completada", "cerradas", cerradas));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Error en verificación: " + e.getMessage()));

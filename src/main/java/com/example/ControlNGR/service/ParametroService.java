@@ -19,6 +19,7 @@ public class ParametroService {
     public static final String VALIDAR_IP_MARCACION = "VALIDAR_IP_MARCACION";
     public static final String TOLERANCIA_TARDANZA_MINUTOS = "TOLERANCIA_TARDANZA_MINUTOS";
     public static final String EVIDENCIA_MAX_MB = "EVIDENCIA_MAX_MB";
+    public static final String SALIDA_AUTOMATICA_HORAS = "SALIDA_AUTOMATICA_HORAS";
 
     private final ParametroSistemaRepository repository;
 
@@ -90,6 +91,12 @@ public class ParametroService {
                 }
             }
             default -> { }
+        }
+        if (SALIDA_AUTOMATICA_HORAS.equals(clave)) {
+            BigDecimal horas = new BigDecimal(valor);
+            if (horas.stripTrailingZeros().scale() > 0 || horas.compareTo(BigDecimal.ONE) < 0 || horas.compareTo(BigDecimal.valueOf(23)) > 0) {
+                throw new IllegalArgumentException("La salida automática debe ser un número entero de horas entre 1 y 23");
+            }
         }
         if (TOLERANCIA_TARDANZA_MINUTOS.equals(clave)) {
             BigDecimal minutos = new BigDecimal(valor);

@@ -183,6 +183,8 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 - La fecha y la hora las pone el servidor; los valores que envíe el cliente se ignoran.
 - Cada usuario solo puede marcar su propia asistencia.
 - **Tolerancia de tardanza: 10 minutos** (parámetro `TOLERANCIA_TARDANZA_MINUTOS`, entero de 0 a 120). Se cambia en el panel admin → **Asistencia y horarios** y se aplica igual al marcar y en el reporte.
+- **Salida automática**: si el colaborador no marca su salida, el sistema la registra sola **12 horas después de la entrada** (parámetro `SALIDA_AUTOMATICA_HORAS`, 1 a 23, en el panel admin → **Asistencia y horarios**). Ejemplo: entrada 17:00 → salida 05:00 del día siguiente. Queda marcada como *automática* (en Inicio y en el reporte) y no se puede justificar con mensaje. La revisión corre cada 5 minutos, al iniciar el sistema y antes de cada marcación, así nadie queda con una salida pendiente.
+- Un turno que cruza la medianoche (por ejemplo 22:00 a 06:00) se muestra en Inicio como "Desde ayer" para poder marcar la salida.
 - La marcación se registra **en cuanto se verifica el rostro**. Después el colaborador ve la hora registrada y puede dejar, si quiere, un **mensaje breve para su supervisor** (hasta 300 caracteres, uno por marcación, dentro de los 30 minutos siguientes). El mensaje aparece en *Reportes de asistencia*.
 - **Un empleado inactivo no puede ingresar al sistema**: al desactivarlo también se bloquea su usuario y su sesión abierta deja de funcionar.
 

@@ -1,6 +1,7 @@
 package com.example.ControlNGR.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.ControlNGR.dto.AsistenciaRequestDTO;
@@ -185,6 +186,7 @@ public class AsistenciaService {
         m.put("marcaAsistencia", Boolean.TRUE.equals(tipo.getMarcaAsistencia()));
         m.put("conHorario", tipo.tieneHorario());
         m.put("toleranciaMinutos", toleranciaMinutos());
+        m.put("horasSalidaAutomatica", horasSalidaAutomatica());
         return m;
     }
 
@@ -428,29 +430,36 @@ public class AsistenciaService {
         return reporte;
     }
 
-    // Verificar y marcar salidas automáticas
+    /** Horas despues de la entrada en que se registra la salida automatica (editable en el panel admin). */
+    private int horasSalidaAutomatica() {
+        int h = parametroService.entero(ParametroService.SALIDA_AUTOMATICA_HORAS, 12);
+        return Math.min(23, Math.max(1, h));
+    }
+
+    /**
+     * Cierra las jornadas que siguen abiertas pasadas N horas de la entrada (12 por defecto):
+     * registra la salida a la hora de entrada + N (por ejemplo entrada 17:00 → salida 05:00 del dia
+     * siguiente), marcada como automatica. Asi el colaborador no queda con una salida pendiente.
+     * Corre cada 5 minutos y al iniciar el sistema (por si estuvo apagado).
+     *
+     * @return cantidad de jornadas cerradas
+     */
+    @Scheduled(fixedDelay = 300_000, initialDelay = 60_000)
     @Transactional
-    public void verificarSalidasAutomaticas() {
-        List<Asistencia> asistenciasPendientes = asistenciaRepository.findAsistenciasConSalidaPendiente();
+    public int verificarSalidasAutomaticas() {
+        int horas = horasSalidaAutomatica();
         LocalDateTime ahora = LocalDateTime.now();
-        
-        for (Asistencia asistencia : asistenciasPendientes) {
-            LocalDateTime horaEntrada = LocalDateTime.of(asistencia.getFecha(), asistencia.getHoraEntrada());
-            long horasTranscurridas = Duration.between(horaEntrada, ahora).toHours();
-            
-            if (horasTranscurridas >= 12) {
-                LocalTime horaSalidaCalculada = asistencia.getHoraEntrada()
-                        .plusHours(9); // 8h trabajo + 1h refrigerio
-                
-                asistencia.setHoraSalida(horaSalidaCalculada);
-                asistencia.setSalidaAutomatica(true);
-                
-                String observacion = "Salida automática por sistema.";
-                String obsActual = asistencia.getObservaciones();
-                asistencia.setObservaciones(obsActual == null ? observacion : obsActual + " " + observacion);
-                
-                asistenciaRepository.save(asistencia);
-            }
+        int cerradas = 0;
+        for (Asistencia asistencia : asistenciaRepository.findAsistenciasConSalidaPendiente()) {
+            LocalDateTime entrada = LocalDateTime.of(asistencia.getFecha(), asistencia.getHoraEntrada());
+            LocalDateTime salida = entrada.plusHours(horas);
+            if (ahora.isBefore(salida)) continue;
+            asistencia.setHoraSalida(salida.toLocalTime().withNano(0));
+            asistencia.setSalidaAutomatica(true);
+            agregarObservacion(asistencia, "Salida automática: no marcó salida en " + horas + " h");
+            asistenciaRepository.save(asistencia);
+            cerradas++;
         }
+        return cerradas;
     }
 }

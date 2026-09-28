@@ -79,7 +79,7 @@ JWT_SECRET=el_texto_largo_que_generó
 SERVIDOR_IP=10.92.104.20
 ```
 
-`SERVIDOR_IP` es la IP fija del servidor: se usa para el certificado HTTPS.
+`SERVIDOR_IP` es la IP del servidor en la red: con ella se genera el certificado HTTPS y es el enlace que usarán todos (`https://10.92.104.20`). **Puede dejarla vacía**: el script de encendido (paso siguiente) detecta la IP de este equipo y la completa sola. Pida a TI que la IP del servidor sea **fija** (IP estática o reserva DHCP) para que el enlace no cambie.
 
 Proteja el archivo para que solo su usuario lo pueda leer:
 
@@ -91,8 +91,10 @@ chmod 600 .env
 
 ```bash
 cd /opt/controlngr/ControlNGR_Backend-v2
-docker compose up -d --build
+sh scripts/iniciar.sh --construir
 ```
+
+El script detecta la IP de este equipo, la guarda como `SERVIDOR_IP` en `.env`, enciende el sistema y muestra el enlace para los usuarios (por ejemplo `Sistema disponible en: https://10.92.104.20`). Si el equipo tiene más de una red, puede indicar la IP: `sh scripts/iniciar.sh --construir 10.92.104.20`.
 
 La primera vez tarda entre 5 y 15 minutos. Al terminar:
 
@@ -164,7 +166,7 @@ JWT_SECRET=el_texto_largo_que_generó
 SERVIDOR_IP=10.92.104.20
 ```
 
-`SERVIDOR_IP` es la IP fija del servidor: se usa para el certificado HTTPS.
+`SERVIDOR_IP` es la IP del servidor en la red: con ella se genera el certificado HTTPS y es el enlace que usarán todos (`https://10.92.104.20`). **Puede dejarla vacía**: el script de encendido (paso siguiente) detecta la IP de este equipo y la completa sola. Pida a TI que la IP del servidor sea **fija** (IP estática o reserva DHCP) para que el enlace no cambie.
 
 Compruebe que el archivo se llame `.env` y no `.env.txt`:
 
@@ -178,13 +180,17 @@ Con poca memoria es mejor construir una parte a la vez:
 
 ```powershell
 cd C:\ControlNGR\ControlNGR_Backend-v2
-docker compose --progress plain build frontend
-docker compose --progress plain build backend
-docker compose up -d
-docker compose ps
+powershell -ExecutionPolicy Bypass -File .\scripts\iniciar.ps1 -Construir
 ```
 
-Deben aparecer `controlngr-db` (healthy), `controlngr-backend` y `controlngr-frontend`.
+El script:
+1. Detecta la **IP de red de este equipo** (la de la conexión a la oficina; no `localhost` ni `127.0.0.1`) y la guarda como `SERVIDOR_IP` en `.env`.
+2. Construye el sistema (una parte a la vez, para usar menos memoria) y lo enciende.
+3. Muestra el enlace para compartir con los usuarios, por ejemplo `Sistema disponible en: https://10.92.104.20`.
+
+Si el equipo tiene más de una red (por ejemplo Wi‑Fi y VPN), el script muestra las demás IP; si la correcta es otra, indíquela: `.\scripts\iniciar.ps1 -Construir -Ip 10.92.104.20`.
+
+Compruebe los contenedores con `docker compose ps`: deben aparecer `controlngr-db` (healthy), `controlngr-backend` y `controlngr-frontend`.
 
 ### B5. Abrir los puertos de la web en el firewall de Windows
 
@@ -208,7 +214,7 @@ En **cada PC** que usará el sistema (incluido el servidor):
 
 Con muchas PCs, TI puede distribuir `ca.crt` por directiva de grupo (GPO). Si falta este paso, el navegador mostrará "La conexión no es privada".
 
-> Si cambia la IP del servidor, actualice `SERVIDOR_IP` en `.env` y ejecute `docker compose up -d`: el certificado del servidor se renueva solo y **no** hace falta volver a importar `ca.crt`.
+> Si cambia la IP del servidor, vuelva a ejecutar el script de encendido (`.\scripts\iniciar.ps1` en Windows, `sh scripts/iniciar.sh` en Linux): actualiza `SERVIDOR_IP`, el certificado del servidor se renueva solo y **no** hace falta volver a importar `ca.crt`. Eso sí, el enlace cambia: por eso conviene que la IP sea fija.
 
 ## 5. Primer ingreso (ambas opciones)
 
@@ -232,7 +238,7 @@ Con muchas PCs, TI puede distribuir `ca.crt` por directiva de grupo (GPO). Si fa
    - Si muestra una IP como `172.x.x.x`: ❌ Docker está ocultando las IPs (pasa en Windows) y nadie podrá marcar. Solución: instalar en un servidor Linux (Opción A).
 3. Ingresar con un colaborador y comprobar que el botón **Marcar entrada** esté habilitado dentro de la red y deshabilitado fuera de ella.
 
-Comparta con el personal la dirección `https://IP-DEL-SERVIDOR`.
+Comparta con el personal la dirección que mostró el script de encendido, `https://IP-DEL-SERVIDOR`. **Nunca** `https://localhost` ni `127.0.0.1`: esas direcciones solo funcionan dentro del propio servidor.
 
 ## 6.5 Registro de rostros
 
@@ -259,11 +265,11 @@ Todos los comandos se ejecutan **dentro de la carpeta `ControlNGR_Backend-v2`**:
 | Quiero… | Comando |
 |---|---|
 | Ver si está funcionando | `docker compose ps` |
-| Encender | `docker compose up -d` |
+| Encender (y ver el enlace) | Windows: `powershell -ExecutionPolicy Bypass -File .\scripts\iniciar.ps1` · Linux: `sh scripts/iniciar.sh` |
 | Apagar | `docker compose stop` |
 | Reiniciar | `docker compose restart` |
 | Ver errores del sistema | `docker compose logs --tail 100 backend` |
-| Actualizar a una versión nueva | `git pull` en **las dos** carpetas y luego `docker compose up -d --build` |
+| Actualizar a una versión nueva | `git pull` en **las dos** carpetas y luego el script de encendido con `-Construir` (Windows) o `--construir` (Linux) |
 
 El sistema **se enciende solo** al prender el equipo (Linux: automático; Windows: si Docker Desktop inicia con la sesión).
 
@@ -316,7 +322,8 @@ Agregue al final esta línea y guarde:
 | La página no carga (`ERR_EMPTY_RESPONSE`) | Ejecute `docker compose down` y luego `docker compose up -d` (sin `-v`) |
 | Todos aparecen "fuera de red" | Ver paso 6. Si la IP es `172.x.x.x`, el servidor debe ser Linux |
 | Cambié `DB_PASSWORD` y ahora el backend no inicia | La base guarda la contraseña de la primera instalación. Vuelva a poner la contraseña original en `.env` |
-| "La conexión no es privada" / no enciende la cámara | Falta importar `ca.crt` en esa PC (paso 4.5), o se entró por `http://` o por una IP distinta a `SERVIDOR_IP` |
+| "La conexión no es privada" / no enciende la cámara | Falta importar `ca.crt` en esa PC (paso 4.5), o se entró por `http://` o por una IP distinta a `SERVIDOR_IP`. Ejecute el script de encendido: muestra la IP correcta y renueva el certificado |
+| Otra PC no abre el enlace del servidor | Revise el firewall de Windows (paso B5) y que la PC esté en la misma red. `docker compose logs frontend` muestra el enlace configurado |
 | "Permiso de cámara denegado" | Clic en el candado de la barra de direcciones → Cámara → Permitir, y recargar |
 | "El rostro no coincide" | Mejorar la iluminación y mirar de frente. Si persiste, restablecer el rostro en Empleados y registrarlo de nuevo |
 | "Este rostro ya está registrado para otro colaborador" | El mismo rostro no puede estar en dos cuentas. Revise en Empleados a quién pertenece |

@@ -198,6 +198,7 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 **Feriados laborados**
 - Si la entrada se marca en un feriado activo, se abonan automáticamente **2 días** de compensación (parámetro `DIAS_POR_FERIADO_LABORADO`), una sola vez por feriado.
 - Los días de compensación no vencen. El admin puede revertir un abono.
+- En el panel admin → **Feriados**, el botón **Copiar a (año siguiente)** muestra una vista previa y copia los feriados con el mismo día y mes. **Jueves y Viernes Santo se recalculan** según la Pascua de ese año. No duplica: omite los que ya están registrados o las fechas que ya son feriado, y se puede desmarcar cualquiera antes de copiar (`POST /api/admin/feriados/copiar` `{origen, destino, simular, ids?}`).
 
 **Vacaciones**
 - Se abonan **30 días** (parámetro `DIAS_VACACIONES_POR_ANIO`) cada vez que el empleado cumple un año desde su fecha de ingreso. El proceso corre cada día a las 00:15 y también al iniciar el sistema.

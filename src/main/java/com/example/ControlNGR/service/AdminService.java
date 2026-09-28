@@ -160,6 +160,73 @@ public class AdminService {
         return feriadoRepository.save(f);
     }
 
+    /**
+     * Copia los feriados de un año a otro. Mismo dia y mes, salvo Jueves y Viernes Santo, que se
+     * recalculan con la Pascua del año destino. No duplica: se omiten las fechas que ya son feriado
+     * y los que ya existen con la misma descripcion en el año destino.
+     *
+     * @param simular true: solo devuelve la vista previa sin guardar
+     * @param ids     feriados del año origen a copiar (null = todos los que se pueden copiar)
+     */
+    @Transactional
+    public Map<String, Object> copiarFeriados(Integer origen, Integer destino, boolean simular, Collection<Integer> ids) {
+        if (origen == null || destino == null) throw new IllegalArgumentException("Indique el año de origen y el de destino");
+        if (origen < 2000 || origen > 2100 || destino < 2000 || destino > 2100) throw new IllegalArgumentException("Año fuera de rango");
+        if (origen.equals(destino)) throw new IllegalArgumentException("El año de destino debe ser distinto al de origen");
+
+        List<DiaFeriado> fuente = feriadoRepository.findByAnio(origen);
+        if (fuente.isEmpty()) throw new IllegalArgumentException("No hay feriados registrados en " + origen);
+        List<DiaFeriado> existentes = feriadoRepository.findByAnio(destino);
+        Set<LocalDate> fechasOcupadas = new HashSet<>();
+        Set<String> descripciones = new HashSet<>();
+        existentes.forEach(f -> { fechasOcupadas.add(f.getFecha()); descripciones.add(FeriadoFechas.normalizar(f.getDescripcion())); });
+
+        List<Map<String, Object>> items = new ArrayList<>();
+        int creados = 0;
+        for (DiaFeriado f : fuente) {
+            LocalDate nueva = FeriadoFechas.enAnio(f.getFecha(), f.getDescripcion(), destino);
+            String estado;
+            if (nueva == null) estado = "fecha_invalida";
+            else if (descripciones.contains(FeriadoFechas.normalizar(f.getDescripcion())) && fechasOcupadas.contains(nueva)) estado = "existe";
+            else if (fechasOcupadas.contains(nueva)) estado = "fecha_ocupada";
+            else if (descripciones.contains(FeriadoFechas.normalizar(f.getDescripcion()))
+                    && FeriadoFechas.desfaseSemanaSanta(f.getDescripcion()) != null) estado = "existe";
+            else estado = "nuevo";
+
+            boolean seleccionado = ids == null || ids.contains(f.getId());
+            if ("nuevo".equals(estado) && seleccionado && !simular) {
+                DiaFeriado copia = new DiaFeriado();
+                copia.setFecha(nueva);
+                copia.setDescripcion(f.getDescripcion());
+                copia.setTipo(f.getTipo());
+                copia.setActivo(f.getActivo());
+                feriadoRepository.save(copia);
+                fechasOcupadas.add(nueva);
+                creados++;
+                estado = "copiado";
+            } else if ("nuevo".equals(estado) && !seleccionado && !simular) {
+                estado = "no_seleccionado";
+            }
+
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", f.getId());
+            m.put("descripcion", f.getDescripcion());
+            m.put("tipo", f.getTipo());
+            m.put("activo", f.getActivo());
+            m.put("fechaOrigen", f.getFecha().toString());
+            m.put("fechaNueva", nueva != null ? nueva.toString() : null);
+            m.put("movil", FeriadoFechas.desfaseSemanaSanta(f.getDescripcion()) != null);
+            m.put("estado", estado);
+            items.add(m);
+        }
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("origen", origen);
+        r.put("destino", destino);
+        r.put("creados", creados);
+        r.put("items", items);
+        return r;
+    }
+
     /** Elimina el feriado; si ya tiene feriados laborados registrados solo se desactiva. */
     @Transactional
     public String eliminarFeriado(Integer id) {

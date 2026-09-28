@@ -20,9 +20,13 @@ carpeta/
 
 ```bash
 cd ControlNGR_Backend-v2
-cp .env.example .env        # completar DB_PASSWORD, JWT_SECRET y SERVIDOR_IP
-docker compose up -d --build
+cp .env.example .env        # completar DB_PASSWORD y JWT_SECRET
+# Detecta la IP de este equipo, la guarda como SERVIDOR_IP, enciende y muestra el enlace:
+powershell -ExecutionPolicy Bypass -File .\scripts\iniciar.ps1 -Construir   # Windows
+sh scripts/iniciar.sh --construir                                            # Linux
 ```
+
+El enlace para los usuarios es `https://IP-DEL-EQUIPO` (nunca `localhost` ni `127.0.0.1`). `SERVIDOR_IP` define para qué IP se emite el certificado HTTPS; si queda vacía, el certificado solo sirve en el propio servidor y el log del frontend lo advierte. Con `-Ip 10.x.x.x` (Windows) o `sh scripts/iniciar.sh 10.x.x.x` (Linux) se indica una IP concreta.
 
 > **Equipos con poca memoria para Docker (2 GB):** construya una parte a la vez para que no compitan por la RAM, y luego levante todo:
 > ```bash
@@ -42,7 +46,7 @@ Actualizar a una versión nueva:
 
 ```bash
 git pull            # en ambos repositorios
-docker compose up -d --build
+powershell -ExecutionPolicy Bypass -File .\scripts\iniciar.ps1 -Construir   # o: sh scripts/iniciar.sh --construir
 ```
 
 ### Respaldo y cambio de equipo

@@ -81,9 +81,7 @@ public class WebSecurityConfig {
                     "/polyfills-*.js", // Polyfills de Angular
                     "/scripts-*.js",   // Scripts de Angular
                     "/styles-*.css",   // Estilos de Angular
-                    "/webjars/**",
-                    "/swagger-ui/**",
-                    "/v3/api-docs/**"
+                    "/webjars/**"
                 ).permitAll()
                 
                 // Endpoints públicos de API (login). El resto de /api/auth valida el usuario en el controlador
@@ -94,13 +92,13 @@ public class WebSecurityConfig {
 
                 // EMPLEADOS - ver: todos; crear/editar/eliminar: jefaturas, supervisores, gestor y admin
                 // (el controlador valida sobre que empleados puede actuar cada rol)
+                .requestMatchers(HttpMethod.GET, "/api/empleados/exportar").hasAnyRole(Roles.AUTH_GESTION_Y_ADMIN)
                 .requestMatchers(HttpMethod.GET, "/api/empleados/**").hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
                 .requestMatchers(HttpMethod.PUT, "/api/empleados/actualizar-perfil/**", "/api/empleados/actualizar-email/**")
                     .hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
                 .requestMatchers("/api/empleados/**").hasAnyRole(Roles.AUTH_GESTION_Y_ADMIN)
 
                 // HORARIOS - ver: todos; modificar: jefaturas, supervisores, gestor y admin
-                .requestMatchers("/api/horarios-semanales/test").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/horarios/**", "/api/horarios-semanales/**")
                     .hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
                 .requestMatchers("/api/horarios/**", "/api/horarios-semanales/**").hasAnyRole(Roles.AUTH_GESTION_Y_ADMIN)

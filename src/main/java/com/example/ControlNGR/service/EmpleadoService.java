@@ -316,9 +316,7 @@ public class EmpleadoService {
         if (datos.getIngreso() != null) {
             empleado.setIngreso(datos.getIngreso());
         }
-        if (datos.getFoto() != null && !datos.getFoto().trim().isEmpty() && !datos.getFoto().equals("img/perfil.png")) {
-            empleado.setFoto(datos.getFoto());
-        }
+        // La foto solo cambia por POST /api/imagenes/upload (se ignora el campo "foto" del formulario)
         if (datos.getActivo() != null) {
             empleado.setActivo(datos.getActivo());
         }
@@ -375,9 +373,7 @@ public class EmpleadoService {
         empleado.setHobby(datos.getHobby());
         empleado.setCumpleanos(datos.getCumpleanos());
         empleado.setIngreso(datos.getIngreso());
-        if (datos.getFoto() != null && !datos.getFoto().isBlank()) {
-            empleado.setFoto(datos.getFoto());
-        }
+        // La foto solo cambia por POST /api/imagenes/upload (se ignora el campo "foto" del formulario)
         empleado.setActivo(datos.getActivo() == null || datos.getActivo());
         if (datos.getDepartamentoId() != null) {
             empleado.setDepartamento(departamentoRepository.findById(datos.getDepartamentoId())

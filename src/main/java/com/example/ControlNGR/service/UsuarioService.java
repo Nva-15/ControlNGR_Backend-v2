@@ -37,11 +37,23 @@ public class UsuarioService {
         return e == null ? Boolean.TRUE.equals(u.getTipoUsuario().getEsSistema()) : Boolean.TRUE.equals(e.getActivo());
     }
 
+    /** Hash BCrypt de una clave aleatoria, para comparar cuando el usuario no existe. */
+    private volatile String hashFicticio;
+
+    private String hashFicticio() {
+        if (hashFicticio == null) hashFicticio = passwordEncoder.encode(java.util.UUID.randomUUID().toString());
+        return hashFicticio;
+    }
+
     @Transactional
     public Optional<Usuario> autenticar(String username, String password) {
         if (username == null || password == null) return Optional.empty();
         Optional<Usuario> opt = usuarioRepository.findByUsername(username.trim());
-        if (opt.isEmpty()) return Optional.empty();
+        if (opt.isEmpty()) {
+            // Mismo tiempo de respuesta que un usuario existente: no revela qué usuarios existen
+            passwordEncoder.matches(password, hashFicticio());
+            return Optional.empty();
+        }
         Usuario u = opt.get();
         if (!puedeIngresar(u) || !passwordEncoder.matches(password, u.getPassword())) {
             return Optional.empty();

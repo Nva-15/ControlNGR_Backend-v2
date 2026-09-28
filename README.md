@@ -279,6 +279,17 @@ Los empleados se registran con `POST /api/empleados` (admin, gerencia y **superv
 
 ---
 
-## 6. IP del cliente detrás de nginx
+## 6. Seguridad
+
+- **Inyección SQL:** todas las consultas usan parámetros (JPA); ningún dato del usuario se concatena en SQL.
+- **XSS:** Angular escapa todo el texto mostrado y nginx aplica una Content-Security-Policy estricta (solo scripts propios).
+- **Sesión:** JWT firmado HS256 (clave `JWT_SECRET` de 32+ caracteres). Los tokens alterados o sin firma se rechazan con 401. El usuario se recarga en cada petición: desactivar a alguien lo saca del sistema al instante.
+- **Contraseñas:** BCrypt; mínimo 8 caracteres con letras y números; cambio obligatorio en el primer ingreso.
+- **Fuerza bruta:** 5 contraseñas incorrectas seguidas bloquean ese usuario 15 minutos (HTTP 429). El mensaje no revela si el usuario existe.
+- **Datos personales:** el DNI y el usuario de cada colaborador solo los ven él mismo, quienes lo administran y el admin. El resto del personal ve los datos de directorio (nombre, cargo, área, foto, cumpleaños). El listado exportable es solo para gestión.
+- **Archivos:** las evidencias se validan por su contenido real (PDF/JPG/PNG), se guardan con nombre aleatorio fuera de la carpeta pública y solo se descargan con permiso. Las fotos de perfil solo se cambian subiendo una imagen; ninguna ruta puede salir de su carpeta.
+- **Red:** solo nginx (HTTPS) queda expuesto; el backend no se publica y MySQL solo escucha en `127.0.0.1` del servidor.
+
+## 7. IP del cliente detrás de nginx
 
 En Docker, nginx reemplaza (no agrega) el encabezado `X-Forwarded-For` con la IP que ve, y el backend solo confía en ese encabezado cuando viene de la red interna de Docker (`FORWARD_HEADERS_STRATEGY=native`, `TRUSTED_PROXIES`, ya configurados en `docker-compose.yml`). Así ningún equipo puede falsificar su IP para marcar desde fuera de la red.

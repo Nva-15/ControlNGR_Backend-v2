@@ -1,5 +1,6 @@
 package com.example.ControlNGR.controller;
 
+import com.example.ControlNGR.security.LimiteIntentosLogin;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,9 +29,12 @@ public class AuthController {
     private final UsuarioActual usuarioActual;
     private final JWTUtil jwtUtil;
     private final EmailService emailService;
+    private final LimiteIntentosLogin limiteIntentos;
 
     public AuthController(UsuarioService usuarioService, EmpleadoService empleadoService,
-                          UsuarioActual usuarioActual, JWTUtil jwtUtil, EmailService emailService) {
+                          UsuarioActual usuarioActual, JWTUtil jwtUtil, EmailService emailService,
+                          LimiteIntentosLogin limiteIntentos) {
+        this.limiteIntentos = limiteIntentos;
         this.usuarioService = usuarioService;
         this.empleadoService = empleadoService;
         this.usuarioActual = usuarioActual;
@@ -40,12 +44,21 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthRequest authRequest) {
-        Optional<Usuario> usuarioOpt = usuarioService.autenticar(authRequest.getUsername(), authRequest.getPassword());
+        String username = authRequest.getUsername();
+        long bloqueado = limiteIntentos.minutosBloqueado(username);
+        if (bloqueado > 0) {
+            logger.warn("Ingreso bloqueado temporalmente por intentos fallidos: {}", username);
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of("error",
+                    "Demasiados intentos fallidos. Por seguridad, espere " + bloqueado + " minuto(s) e intente de nuevo."));
+        }
+        Optional<Usuario> usuarioOpt = usuarioService.autenticar(username, authRequest.getPassword());
         if (usuarioOpt.isEmpty()) {
-            logger.warn("Credenciales invalidas para: {}", authRequest.getUsername());
+            limiteIntentos.registrarFallo(username);
+            logger.warn("Credenciales invalidas para: {}", username);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("error", "Credenciales inválidas o usuario inactivo"));
         }
+        limiteIntentos.registrarExito(username);
         Usuario usuario = usuarioOpt.get();
         logger.info("Login exitoso: {} ({})", usuario.getUsername(), usuario.getRol());
         return ResponseEntity.ok(respuestaSesion(usuario));

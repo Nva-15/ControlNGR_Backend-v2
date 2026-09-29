@@ -52,6 +52,8 @@ if [ "$CONSTRUIR" = 1 ]; then
     docker compose build frontend
 fi
 docker compose up -d
+# La carpeta de respaldos debe poder escribirla el usuario del backend
+docker exec -u root controlngr-backend chown app:app /app/data/respaldos >/dev/null 2>&1 || true
 
 PUERTO=$(grep -E '^[[:space:]]*HTTPS_PORT[[:space:]]*=' .env | head -n 1 | cut -d= -f2- | tr -d '[:space:]')
 [ -n "$PUERTO" ] || PUERTO=443

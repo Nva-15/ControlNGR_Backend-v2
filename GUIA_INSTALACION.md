@@ -281,7 +281,18 @@ El sistema **se enciende solo** al prender el equipo (Linux: automático; Window
 
 Los datos (base de datos, fotos y evidencias) **no están en GitHub**. Solo existen en el servidor y en los respaldos.
 
-**Sacar un respaldo:**
+**Respaldo automático desde el panel (recomendado):** entre como `admin` → **Panel maestro → Respaldos**.
+
+- **Respaldo automático:** elija *Diario*, *Semanal* (y el día) o *Mensual* (y el día del mes), la hora (de Lima) y cuántos respaldos automáticos conservar. Al superar esa cantidad se borra el más antiguo.
+- **Respaldo ahora:** genera uno en el momento (por ejemplo, antes de actualizar o de cambiar de equipo).
+- Marque **Incluir fotos y evidencias** para poder restaurar todo en otro equipo.
+- Los archivos quedan en la carpeta **`respaldos`** dentro de `ControlNGR_Backend-v2` del servidor, y se pueden **descargar** desde la tabla del panel. Cada `.zip` trae un `LEEME.txt` con los pasos para restaurarlo.
+- Si el sistema estaba apagado a la hora programada, el respaldo se hace apenas vuelva a encenderse.
+- Si el panel avisa *"No se puede escribir en la carpeta de respaldos"*, vuelva a encender el sistema con el script `iniciar` (paso A4/B4): le da permiso a esa carpeta.
+
+**Copie los respaldos a otro lugar** de vez en cuando (servidor de archivos, disco externo): si el disco del servidor falla, los respaldos de la carpeta `respaldos` se pierden con él.
+
+**Sacar un respaldo con script** (alternativa sin entrar al panel):
 
 | Linux | Windows |
 |---|---|
@@ -295,9 +306,9 @@ Se crea un archivo en la carpeta `respaldos` (por ejemplo `controlngr_20260927_1
 |---|---|
 | `sh scripts/restaurar.sh respaldos/controlngr_20260927_1830.tar.gz` | `powershell -ExecutionPolicy Bypass -File .\scripts\restaurar.ps1 -Respaldo D:\ruta\controlngr_20260927_1830.zip` |
 
-El script pide escribir `SI` para confirmar, porque reemplaza todos los datos actuales.
+El script pide escribir `SI` para confirmar, porque reemplaza todos los datos actuales. Sirve igual para los respaldos del panel (`controlngr_AAAAMMDD_HHMMSS_manual.zip` o `..._programado.zip`) y para los de `respaldar`.
 
-**Respaldo automático en Linux** (todos los días a las 11 p. m.):
+**Respaldo automático en Linux con cron** (alternativa al panel; todos los días a las 11 p. m.):
 
 ```bash
 crontab -e

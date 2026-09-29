@@ -3,6 +3,8 @@
 # Uso (desde la carpeta ControlNGR_Backend-v2, con el .env ya creado):
 #   powershell -ExecutionPolicy Bypass -File .\scripts\restaurar.ps1 -Respaldo D:\respaldos\controlngr_20260927_1830.zip
 #
+# Sirve para los respaldos de scripts\respaldar.ps1 y para los del panel admin (seccion Respaldos).
+#
 # ATENCION: reemplaza la base de datos, fotos y evidencias actuales por las del respaldo.
 
 param(
@@ -42,6 +44,10 @@ if (Test-Path "$temp\img")        { docker cp "$temp\img\." controlngr-backend:/
 if (Test-Path "$temp\evidencias") { docker cp "$temp\evidencias\." controlngr-backend:/app/data/evidencias/ }
 
 docker compose start backend | Out-Null
+# Los archivos copiados deben pertenecer al usuario del backend
+$ErrorActionPreference = 'Continue'
+try { docker exec -u root controlngr-backend chown -R app:app /app/data 2>&1 | Out-Null } catch { }
+$ErrorActionPreference = 'Stop'
 Remove-Item -Recurse -Force $temp
 
 Write-Host ''

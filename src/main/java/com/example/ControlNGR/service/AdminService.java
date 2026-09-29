@@ -434,6 +434,7 @@ public class AdminService {
             m.put("empleadoNombre", e.getNombre());
             m.put("dni", e.getDni());
             m.put("rol", e.getRol());
+            m.put("departamento", e.getDepartamentoNombre());
             m.put("activo", e.getActivo());
             m.put("ingreso", e.getIngreso());
             m.put("vacaciones", resumen.get("vacaciones"));

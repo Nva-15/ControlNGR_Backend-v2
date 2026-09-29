@@ -11,6 +11,10 @@ public class ReporteAsistenciaDTO {
     private String empleadoNombre;
     private String empleadoRol;
     private String empleadoCargo;
+    private String empleadoDepartamento;
+
+    public String getEmpleadoDepartamento() { return empleadoDepartamento; }
+    public void setEmpleadoDepartamento(String empleadoDepartamento) { this.empleadoDepartamento = empleadoDepartamento; }
     private LocalDate fecha;
     private String diaSemana;
     private String horarioEntrada;    // scheduled (formatted HH:mm)

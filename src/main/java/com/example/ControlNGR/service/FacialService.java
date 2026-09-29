@@ -322,6 +322,7 @@ public class FacialService {
         m.put("cargo", e.getCargo());
         m.put("foto", e.getFoto());
         m.put("rol", e.getRol());
+        m.put("departamento", e.getDepartamentoNombre());
         return m;
     }
 

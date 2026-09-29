@@ -9,6 +9,8 @@ Spring Boot 3.5 · Java 21 · MySQL 8 · Flyway · Docker
 ## 1. Levantar el sistema con Docker (recomendado)
 
 > **¿Instalación en el equipo de la empresa?** Siga la guía paso a paso: [GUIA_INSTALACION.md](GUIA_INSTALACION.md).
+>
+> **¿Windows con Docker Desktop y todos aparecen "fuera de red" (IP 172.28.0.1)?** Pase Docker a WSL2 con red *mirrored* para ver la IP real de cada PC: [GUIA_WSL.md](GUIA_WSL.md).
 
 Requisitos: Docker (Engine con el plugin `compose`, o Docker Desktop) y los **dos repositorios clonados en la misma carpeta**:
 

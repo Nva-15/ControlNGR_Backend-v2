@@ -52,6 +52,7 @@ services:
       DB_USER: root
       STORAGE_IMG: file:/app/data/img/
       STORAGE_EVIDENCIAS: /app/data/evidencias
+      STORAGE_RESPALDOS: /app/data/respaldos
       # Memoria maxima de Java (subir si hay muchos usuarios y RAM disponible)
       JAVA_TOOL_OPTIONS: ${BACKEND_JAVA_OPTS:--Xms128m -Xmx512m -XX:+UseSerialGC}
       # La IP real del cliente llega desde nginx; solo se confia en la red interna de Docker
@@ -60,6 +61,9 @@ services:
     volumes:
       - img_data:/app/data/img
       - evidencias_data:/app/data/evidencias
+      # Respaldos programados desde el panel: quedan en la carpeta "respaldos" de este equipo.
+      # Contienen datos personales; nunca se suben a git (.gitignore)
+      - ./respaldos:/app/data/respaldos
     expose:
       - "8080"
     networks: [interna]

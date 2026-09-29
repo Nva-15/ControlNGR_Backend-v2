@@ -51,7 +51,11 @@ powershell -ExecutionPolicy Bypass -File .\scripts\iniciar.ps1 -Construir   # o:
 
 ### Respaldo y cambio de equipo
 
-La base de datos, las fotos de perfil y las evidencias viven en volúmenes de Docker, **no en GitHub**. Son datos personales: si el repositorio se viera comprometido, no deben estar ahí. Para respaldarlos o llevarlos a otro equipo se usan dos scripts (Windows, PowerShell):
+La base de datos, las fotos de perfil y las evidencias viven en volúmenes de Docker, **no en GitHub**. Son datos personales: si el repositorio se viera comprometido, no deben estar ahí.
+
+**Desde el panel:** *Panel maestro → Respaldos* permite programar respaldos automáticos (diarios, semanales o mensuales, a una hora) y generar uno en el momento. Quedan en la carpeta `respaldos` junto a este archivo (ignorada por git) y se pueden descargar desde el panel.
+
+Para respaldarlos o llevarlos a otro equipo también hay dos scripts (Windows, PowerShell):
 
 ```powershell
 # En el equipo actual (con el sistema encendido): genera respaldos\controlngr_AAAAMMDD_HHMM.zip
@@ -61,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\respaldar.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\restaurar.ps1 -Respaldo D:\ruta\controlngr_AAAAMMDD_HHMM.zip
 ```
 
-El `.zip` contiene la base completa (`controlngr.sql`), las fotos (`img/`) y las evidencias (`evidencias/`). Guárdelo en un lugar seguro; se recomienda generar uno periódicamente.
+El `.zip` contiene la base completa (`controlngr.sql`), las fotos (`img/`) y las evidencias (`evidencias/`). `restaurar` acepta también los `.zip` generados desde el panel. Guárdelo en un lugar seguro; se recomienda generar uno periódicamente.
 
 ### HTTPS y certificado (obligatorio para la cámara)
 

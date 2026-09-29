@@ -17,8 +17,11 @@ RUN ./gradlew --no-daemon bootJar -x test
 FROM eclipse-temurin:21-jre
 ENV TZ=America/Lima
 WORKDIR /app
+# mysqldump para los respaldos programados desde el panel admin
+RUN apt-get update && apt-get install -y --no-install-recommends mysql-client \
+    && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system app && useradd --system --gid app app \
-    && mkdir -p /app/data/img /app/data/evidencias && chown -R app:app /app
+    && mkdir -p /app/data/img /app/data/evidencias /app/data/respaldos && chown -R app:app /app
 COPY --from=build /app/build/libs/Control-NGR.jar app.jar
 USER app
 EXPOSE 8080

@@ -131,6 +131,10 @@ if ($Construir) {
 Write-Host 'Levantando el sistema...'
 docker compose up -d
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo levantar el sistema. Esta abierto Docker Desktop?' }
+# La carpeta de respaldos debe poder escribirla el usuario del backend
+$ErrorActionPreference = 'Continue'
+try { docker exec -u root controlngr-backend chown app:app /app/data/respaldos 2>&1 | Out-Null } catch { }
+$ErrorActionPreference = 'Stop'
 
 # ---------- 4. Comprobar y mostrar el enlace ----------
 $puerto = Get-ValorEnv ([System.IO.File]::ReadAllLines($rutaEnv)) 'HTTPS_PORT'

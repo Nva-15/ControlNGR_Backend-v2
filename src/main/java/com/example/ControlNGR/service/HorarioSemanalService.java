@@ -532,6 +532,7 @@ public class HorarioSemanalService {
                     empleado.getRol(),
                     empleado.getCargo()
             );
+            empDTO.setEmpleadoDepartamento(empleado.getDepartamentoNombre());
 
             for (HorarioSemanalDetalle det : detallesEmpleado) {
                 String fechaKey = det.getFecha().format(DateTimeFormatter.ISO_LOCAL_DATE);

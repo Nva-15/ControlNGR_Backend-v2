@@ -9,6 +9,7 @@ public class EmpleadoHorarioSemanalDTO {
     private String empleadoNombre;
     private String empleadoRol;
     private String empleadoCargo;
+    private String empleadoDepartamento;
     private Map<String, DetalleHorarioDiaDTO> dias; // Clave: fecha ISO (yyyy-MM-dd)
 
     // Constructores
@@ -61,6 +62,14 @@ public class EmpleadoHorarioSemanalDTO {
 
     public void setEmpleadoCargo(String empleadoCargo) {
         this.empleadoCargo = empleadoCargo;
+    }
+
+    public String getEmpleadoDepartamento() {
+        return empleadoDepartamento;
+    }
+
+    public void setEmpleadoDepartamento(String empleadoDepartamento) {
+        this.empleadoDepartamento = empleadoDepartamento;
     }
 
     public Map<String, DetalleHorarioDiaDTO> getDias() {

@@ -360,6 +360,7 @@ public class AsistenciaService {
                 dto.setEmpleadoNombre(empleado.getNombre());
                 dto.setEmpleadoRol(empleado.getRol());
                 dto.setEmpleadoCargo(empleado.getCargo());
+                dto.setEmpleadoDepartamento(empleado.getDepartamentoNombre());
                 dto.setFecha(fecha);
                 dto.setDiaSemana(diaSemanaEsp);
 

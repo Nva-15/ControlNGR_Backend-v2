@@ -13,7 +13,11 @@ RESPALDO="$1"
 [ -f "$RESPALDO" ] || { echo "Uso: sh scripts/restaurar.sh ARCHIVO.tar.gz|ARCHIVO.zip"; exit 1; }
 printf "Se reemplazaran TODOS los datos actuales por los del respaldo. Escriba SI para continuar: "
 read CONFIRMAR
-[ "$CONFIRMAR" = "SI" ] || { echo "Cancelado."; exit 1; }
+# Acepta SI o si (sin espacios)
+case "$(echo "$CONFIRMAR" | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')" in
+    SI) ;;
+    *) echo "Cancelado."; exit 1 ;;
+esac
 
 TEMP=$(mktemp -d)
 case "$RESPALDO" in

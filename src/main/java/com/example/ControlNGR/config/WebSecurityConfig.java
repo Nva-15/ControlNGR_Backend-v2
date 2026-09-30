@@ -127,6 +127,10 @@ public class WebSecurityConfig {
                     .hasAnyRole(Roles.AUTH_PERSONAL)
                 .requestMatchers("/api/eventos/**").hasAnyRole(Roles.AUTH_GESTION)
 
+                // + HERRAMIENTAS - ver: todo el personal y admin; crear/editar/eliminar: gestion y admin
+                .requestMatchers(HttpMethod.GET, "/api/herramientas/**").hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
+                .requestMatchers("/api/herramientas/**").hasAnyRole(Roles.AUTH_GESTION_Y_ADMIN)
+
                 // El resto requiere autenticación
                 .anyRequest().authenticated()
             )

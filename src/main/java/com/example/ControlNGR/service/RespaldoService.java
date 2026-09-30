@@ -102,12 +102,16 @@ public class RespaldoService {
 
     @Transactional
     public Map<String, Object> estado() {
+        // Se lee antes que la base: la transaccion ve una foto fija (REPEATABLE READ) y el respaldo
+        // guarda su resultado antes de bajar la bandera. Asi nunca se informa "terminado" con un
+        // registro que aun figura EN_CURSO.
+        boolean respaldoEnCurso = enCurso.get();
         RespaldoProgramacion p = programacion();
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("programacion", programacionMap(p));
         LocalDateTime proximo = proximaEjecucion(p, ahora());
         m.put("proximo", proximo);
-        m.put("enCurso", enCurso.get());
+        m.put("enCurso", respaldoEnCurso);
         m.put("carpetaDisponible", carpetaEscribible());
         List<Map<String, Object>> lista = new ArrayList<>();
         for (Respaldo r : repository.findAllByOrderByIniciadoEnDescIdDesc()) lista.add(respaldoMap(r));

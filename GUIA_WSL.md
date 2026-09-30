@@ -64,6 +64,10 @@ cd ~/Control_NGR/ControlNGR_Backend-v2
 
 El script copia los dos repositorios, con `.env`, `certs` y `respaldos`, al disco de Linux (`~/Control_NGR`), que es más rápido. También los ajusta para que `git pull` funcione en Linux. La carpeta de Windows no se modifica.
 
+- Las claves del certificado (`certs/*.key`) se copian con `sudo`, así que el script pide la contraseña de Ubuntu.
+- Si la copia se cortó a medias, termínela con `sh /mnt/d/Control_NGR/ControlNGR_Backend-v2/scripts/wsl/3-copiar-sistema.sh --ajustar`.
+- Si `docker` responde *permission denied*, falta cerrar Ubuntu y volver a abrirlo después de instalar Docker. También puede ejecutar `newgrp docker` en la misma ventana.
+
 Compruebe:
 
 ```bash

@@ -10,7 +10,8 @@
 # Hace:
 #   1. Actualiza WSL.
 #   2. Activa networkingMode=mirrored en %USERPROFILE%\.wslconfig (guarda copia .wslconfig.bak).
-#   3. Permite en el firewall (Windows y Hyper-V) los puertos 80 y 443, y 8099 para la prueba de IP.
+#   3. Permite en el firewall (Windows y Hyper-V) los puertos 80 y 443 (o 8088 y 8443 si otro programa
+#      de Windows usa 80/443) y 8099 para la prueba de IP.
 #   4. Crea la tarea programada "Control NGR - WSL" que mantiene Ubuntu encendido al iniciar sesion.
 #   5. Reinicia WSL para aplicar el cambio.
 # No borra nada ni toca Docker Desktop ni sus datos.
@@ -66,13 +67,12 @@ Write-Host "   $rutaConfig"
 Write-Host '3/5 Abriendo los puertos en el firewall...'
 # Identificador fijo de WSL para el firewall de Hyper-V
 $wslVm = '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}'
-if (-not (Get-NetFirewallHyperVRule -Name 'ControlNGR-WSL' -ErrorAction SilentlyContinue)) {
-    New-NetFirewallHyperVRule -Name 'ControlNGR-WSL' -DisplayName 'Control NGR (WSL)' -Direction Inbound `
-        -VMCreatorId $wslVm -Protocol TCP -LocalPorts 80, 443, 8099 | Out-Null
-}
-if (-not (Get-NetFirewallRule -DisplayName 'Control NGR (web)' -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -DisplayName 'Control NGR (web)' -Direction Inbound -Protocol TCP -LocalPort 80, 443 -Action Allow | Out-Null
-}
+# Se vuelve a crear para que una instalacion anterior tambien quede con todos los puertos
+Remove-NetFirewallHyperVRule -Name 'ControlNGR-WSL' -ErrorAction SilentlyContinue
+New-NetFirewallHyperVRule -Name 'ControlNGR-WSL' -DisplayName 'Control NGR (WSL)' -Direction Inbound `
+    -VMCreatorId $wslVm -Protocol TCP -LocalPorts 80, 443, 8088, 8443, 8099 | Out-Null
+Remove-NetFirewallRule -DisplayName 'Control NGR (web)' -ErrorAction SilentlyContinue
+New-NetFirewallRule -DisplayName 'Control NGR (web)' -Direction Inbound -Protocol TCP -LocalPort 80, 443, 8088, 8443 -Action Allow | Out-Null
 if (-not (Get-NetFirewallRule -DisplayName 'Control NGR (prueba de IP)' -ErrorAction SilentlyContinue)) {
     New-NetFirewallRule -DisplayName 'Control NGR (prueba de IP)' -Direction Inbound -Protocol TCP -LocalPort 8099 -Action Allow | Out-Null
 }

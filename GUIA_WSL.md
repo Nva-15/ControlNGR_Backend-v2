@@ -107,7 +107,7 @@ sh scripts/restaurar.sh respaldos/NOMBRE_DEL_RESPALDO.zip
 - `iniciar.sh --construir` tarda de 10 a 20 minutos la primera vez y muestra el enlace, por ejemplo `https://10.92.104.14`.
 - `ls respaldos/` muestra el respaldo del paso 1, por ejemplo `controlngr_20260929_081500_manual.zip`. `restaurar.sh` pide escribir `SI`.
 - Las PCs **no** necesitan reimportar el certificado: la carpeta `certs` se copió con su autoridad `ca.crt`.
-- Si aparece `failed to bind host port 0.0.0.0:80/tcp: address already in use`, otro programa de Windows usa el puerto 80, por ejemplo IIS o Reporting Services. Con la red *mirrored*, Ubuntu comparte los puertos con Windows. Como el puerto 80 solo redirige a `https://`, muévalo a otro con `sed -i 's/^APP_PORT=.*/APP_PORT=8088/' .env` y ejecute `docker compose up -d`. Los usuarios siguen entrando por `https://IP`.
+- Si aparece `failed to bind host port 0.0.0.0:80/tcp: address already in use`, otro programa de Windows usa el puerto 80, por ejemplo IIS o Reporting Services. Con la red *mirrored*, Ubuntu comparte los puertos con Windows. Como el puerto 80 solo redirige a `https://`, muévalo a otro con `sed -i 's/^APP_PORT=.*/APP_PORT=8088/' .env` y ejecute `docker compose up -d`. Si el puerto 443 también está ocupado, use `HTTPS_PORT=8443`: los usuarios entrarán por `https://IP:8443`. El script de Windows ya abre 8088 y 8443 en el firewall.
 
 ## 6. Comprobar
 

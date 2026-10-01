@@ -53,3 +53,6 @@ respaldos/
 
 # Certificados HTTPS (claves privadas)
 certs/
+
+# Caché de Python (scripts)
+__pycache__/

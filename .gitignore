@@ -47,6 +47,8 @@ data/
 
 # Respaldos (contienen datos personales)
 respaldos/
+# Informes y SQL de la migración del sistema anterior (datos personales)
+/migracion/
 *.sql.gz
 
 # Certificados HTTPS (claves privadas)

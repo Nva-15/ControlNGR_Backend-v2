@@ -22,6 +22,7 @@ import com.example.ControlNGR.repository.HorarioSemanalDetalleRepository;
 import java.time.*;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -295,21 +296,36 @@ public class AsistenciaService {
                 .collect(Collectors.toList());
     }
     
-    // Generar reporte de asistencia con calculo de puntualidad
-    // Prioriza horarios semanales si existen, sino usa horario base
+    /**
+     * Reporte de asistencia con calculo de puntualidad. Prioriza horarios semanales si existen,
+     * sino usa horario base. Los dias sin horario muestran lo que marco el colaborador ("Asistió");
+     * si ese dia no marco, no se listan (era su descanso).
+     */
     @Transactional(readOnly = true)
     public List<ReporteAsistenciaDTO> generarReporteAsistencia(LocalDate fechaInicio, LocalDate fechaFin) {
         List<ReporteAsistenciaDTO> reporte = new ArrayList<>();
-
-        // Obtener empleados activos (excluyendo admin)
-        // Solo el personal cuyo rol trabaja con horario (configurable por rol en el panel admin)
-        List<Empleado> empleados = empleadoRepository.findEmpleadosConHorario();
         int tolerancia = toleranciaMinutos();
 
         // Obtener todas las asistencias en el rango
         List<Asistencia> asistencias = asistenciaRepository.findByFechaBetween(fechaInicio, fechaFin);
+        Map<String, Asistencia> asistenciaPorDia = new HashMap<>();
+        for (Asistencia a : asistencias) {
+            asistenciaPorDia.putIfAbsent(a.getEmpleado().getId() + "|" + a.getFecha(), a);
+        }
 
-        for (Empleado empleado : empleados) {
+        // Personal cuyo rol trabaja con horario (configurable por rol en el panel admin), mas quien
+        // haya marcado en el periodo aunque su rol no use horario (por ejemplo, jefaturas)
+        Map<Integer, Empleado> empleados = new LinkedHashMap<>();
+        for (Empleado e : empleadoRepository.findEmpleadosConHorario()) {
+            empleados.put(e.getId(), e);
+        }
+        for (Asistencia a : asistencias) {
+            if (a.getHoraEntrada() != null) {
+                empleados.putIfAbsent(a.getEmpleado().getId(), a.getEmpleado());
+            }
+        }
+
+        for (Empleado empleado : empleados.values()) {
             // Iterar cada dia del rango
             LocalDate fecha = fechaInicio;
             while (!fecha.isAfter(fechaFin)) {
@@ -347,13 +363,7 @@ public class AsistenciaService {
                 }
 
                 // Buscar asistencia para este empleado en esta fecha
-                Asistencia asistencia = null;
-                for (Asistencia a : asistencias) {
-                    if (a.getEmpleado().getId().equals(empleado.getId()) && a.getFecha().equals(fecha)) {
-                        asistencia = a;
-                        break;
-                    }
-                }
+                Asistencia asistencia = asistenciaPorDia.get(empleado.getId() + "|" + fecha);
 
                 ReporteAsistenciaDTO dto = new ReporteAsistenciaDTO();
                 dto.setEmpleadoId(empleado.getId());
@@ -378,18 +388,19 @@ public class AsistenciaService {
                     dto.setEstado(tipoFormateado);
                     dto.setMinutosRetraso(null);
                 } else if (!tieneHorario) {
-                    // Sin horario definido
-                    dto.setEstado("Sin horario");
+                    // Sin horario: se muestra lo que marco; sin marcacion el dia no se lista
+                    if (asistencia != null && asistencia.getHoraEntrada() != null) {
+                        copiarMarcacion(dto, asistencia);
+                        dto.setEstado("Asistió");
+                    } else if (asistencia != null && "permiso".equalsIgnoreCase(asistencia.getEstado())) {
+                        dto.setEstado("Permiso");
+                        dto.setObservaciones(asistencia.getObservaciones());
+                    }
                     dto.setMinutosRetraso(null);
                 } else {
                     // Dia laboral normal
                     if (asistencia != null && asistencia.getHoraEntrada() != null) {
-                        dto.setHoraEntradaRealFromTime(asistencia.getHoraEntrada());
-                        dto.setHoraSalidaRealFromTime(asistencia.getHoraSalida());
-                        dto.setObservaciones(asistencia.getObservaciones());
-                        dto.setSalidaAutomatica(asistencia.getSalidaAutomatica());
-                        dto.setMensajeEntrada(asistencia.getMensajeEntrada());
-                        dto.setMensajeSalida(asistencia.getMensajeSalida());
+                        copiarMarcacion(dto, asistencia);
 
                         // Calcular retraso
                         if (horaEntradaProgramada != null) {
@@ -423,12 +434,23 @@ public class AsistenciaService {
                     }
                 }
 
-                reporte.add(dto);
+                if (dto.getEstado() != null) {
+                    reporte.add(dto);
+                }
                 fecha = fecha.plusDays(1);
             }
         }
 
         return reporte;
+    }
+
+    private static void copiarMarcacion(ReporteAsistenciaDTO dto, Asistencia asistencia) {
+        dto.setHoraEntradaRealFromTime(asistencia.getHoraEntrada());
+        dto.setHoraSalidaRealFromTime(asistencia.getHoraSalida());
+        dto.setObservaciones(asistencia.getObservaciones());
+        dto.setSalidaAutomatica(asistencia.getSalidaAutomatica());
+        dto.setMensajeEntrada(asistencia.getMensajeEntrada());
+        dto.setMensajeSalida(asistencia.getMensajeSalida());
     }
 
     /** Horas despues de la entrada en que se registra la salida automatica (editable en el panel admin). */

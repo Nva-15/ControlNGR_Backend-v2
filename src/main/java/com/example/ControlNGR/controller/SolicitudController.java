@@ -148,6 +148,13 @@ public class SolicitudController {
         return ResponseEntity.ok(solicitudService.obtenerPendientes());
     }
 
+    /** Cupos de compensación del equipo del usuario para la semana de la fecha (aprobación automática). */
+    @GetMapping("/cupos-compensacion")
+    public ResponseEntity<Map<String, Object>> cuposCompensacion(
+            @RequestParam(value = "fecha", required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        return ResponseEntity.ok(solicitudService.cuposCompensacion(fecha));
+    }
+
     /** Roles cuyas solicitudes aprueba el usuario autenticado (vacio si no aprueba). */
     @GetMapping("/roles-a-cargo")
     public ResponseEntity<List<String>> getRolesACargo() {

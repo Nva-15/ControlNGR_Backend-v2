@@ -12,6 +12,9 @@ public class SolicitudRequestDTO {
     private String motivo;
     /** Requerido cuando el tipo es licencia. */
     private Integer motivoLicenciaId;
+    /** Compensación por urgencia personal: va siempre al supervisor (con motivo obligatorio). */
+    private Boolean urgente;
+    private String motivoUrgencia;
 
     public Integer getEmpleadoId() { return empleadoId; }
     public void setEmpleadoId(Integer empleadoId) { this.empleadoId = empleadoId; }
@@ -30,4 +33,10 @@ public class SolicitudRequestDTO {
 
     public Integer getMotivoLicenciaId() { return motivoLicenciaId; }
     public void setMotivoLicenciaId(Integer motivoLicenciaId) { this.motivoLicenciaId = motivoLicenciaId; }
+
+    public Boolean getUrgente() { return urgente; }
+    public void setUrgente(Boolean urgente) { this.urgente = urgente; }
+
+    public String getMotivoUrgencia() { return motivoUrgencia; }
+    public void setMotivoUrgencia(String motivoUrgencia) { this.motivoUrgencia = motivoUrgencia; }
 }

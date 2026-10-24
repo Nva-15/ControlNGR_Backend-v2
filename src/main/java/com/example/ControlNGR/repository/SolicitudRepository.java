@@ -88,4 +88,36 @@ public interface SolicitudRepository extends JpaRepository<Solicitud, Integer> {
             @Param("estado") String estado,
             @Param("desde") LocalDateTime desde);
 
+
+    // ---------- Aprobación automática de compensaciones ----------
+
+    /** Compensaciones aprobadas de los empleados de un equipo que se cruzan con el rango. */
+    @Query("SELECT s FROM Solicitud s WHERE s.estado = 'aprobado' AND s.tipoSolicitud.codigo = 'compensacion' " +
+           "AND s.empleado.departamento.id = :departamentoId AND s.fechaInicio <= :fin AND s.fechaFin >= :inicio")
+    List<Solicitud> findCompensacionesAprobadasDeEquipo(@Param("departamentoId") Integer departamentoId,
+                                                        @Param("inicio") LocalDate inicio,
+                                                        @Param("fin") LocalDate fin);
+
+    /** Solicitudes aprobadas (de cualquier tipo) de un equipo que se cruzan con el rango. */
+    @Query("SELECT s FROM Solicitud s WHERE s.estado = 'aprobado' " +
+           "AND s.empleado.departamento.id = :departamentoId AND s.fechaInicio <= :fin AND s.fechaFin >= :inicio")
+    List<Solicitud> findAprobadasDeEquipo(@Param("departamentoId") Integer departamentoId,
+                                          @Param("inicio") LocalDate inicio,
+                                          @Param("fin") LocalDate fin);
+
+    /** Sala de espera de un equipo, por orden de llegada. */
+    @Query("SELECT s FROM Solicitud s WHERE s.estado = 'pendiente' AND s.motivoEspera IS NOT NULL " +
+           "AND s.empleado.departamento.id = :departamentoId ORDER BY s.fechaSolicitud ASC, s.id ASC")
+    List<Solicitud> findEnEsperaDeEquipo(@Param("departamentoId") Integer departamentoId);
+
+    /** Toda la sala de espera, por orden de llegada (para calcular posiciones). */
+    @Query("SELECT s FROM Solicitud s WHERE s.estado = 'pendiente' AND s.motivoEspera IS NOT NULL " +
+           "ORDER BY s.fechaSolicitud ASC, s.id ASC")
+    List<Solicitud> findEnEspera();
+
+    /** En espera (o urgentes) cuya fecha de inicio es la indicada o anterior. */
+    @Query("SELECT s FROM Solicitud s WHERE s.estado = 'pendiente' " +
+           "AND (s.motivoEspera IS NOT NULL OR s.urgente = true) AND s.fechaInicio <= :fecha")
+    List<Solicitud> findEsperaHasta(@Param("fecha") LocalDate fecha);
+
 }

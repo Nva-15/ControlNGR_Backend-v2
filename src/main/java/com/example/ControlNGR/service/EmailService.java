@@ -119,6 +119,31 @@ public class EmailService {
         }
     }
 
+    /** Aviso breve a un aprobador sobre la aprobación automática o la sala de espera de compensaciones. */
+    @Async
+    public void enviarAvisoSolicitud(String destinatarioEmail, String nombre, String titulo, String mensaje) {
+        if (!emailEnabled || destinatarioEmail == null || destinatarioEmail.isEmpty()) {
+            return;
+        }
+        try {
+            String html = """
+                <!DOCTYPE html><html><head><meta charset="UTF-8"></head>
+                <body style="font-family:Arial,sans-serif;background:#f4f4f4;margin:0;padding:20px">
+                  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:10px;overflow:hidden">
+                    <div style="background:#9b1437;color:#fff;padding:20px 28px"><h2 style="margin:0">%s</h2></div>
+                    <div style="padding:24px 28px;color:#333"><p>Hola <strong>%s</strong>,</p><p>%s</p>
+                      <p style="color:#666;font-size:13px">Revíselo en Control NGR → Solicitudes → Por aprobar.</p></div>
+                  </div>
+                </body></html>
+                """.formatted(org.springframework.web.util.HtmlUtils.htmlEscape(titulo),
+                    org.springframework.web.util.HtmlUtils.htmlEscape(nombre == null ? "" : nombre),
+                    org.springframework.web.util.HtmlUtils.htmlEscape(mensaje));
+            enviarEmail(destinatarioEmail, titulo + " - ControlNGR", html);
+        } catch (Exception e) {
+            logger.error("Error enviando aviso a {}: {}", destinatarioEmail, e.getMessage());
+        }
+    }
+
     /** Notifica al empleado sobre cambio de contraseña. */
     @Async
     public void enviarNotificacionCambioPassword(String destinatarioEmail, String empleadoNombre) {

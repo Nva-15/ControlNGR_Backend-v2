@@ -59,6 +59,20 @@ public class Solicitud {
     @Column(name = "comentario_gestion", columnDefinition = "TEXT")
     private String comentarioGestion;
 
+    /** Marcada por el colaborador como urgencia personal: siempre la decide el supervisor. */
+    @Column(name = "urgente", nullable = false)
+    private Boolean urgente = false;
+
+    @Column(name = "motivo_urgencia", length = 500)
+    private String motivoUrgencia;
+
+    /** Si no se aprobó sola: por qué quedó en la sala de espera (la solicitud sigue pendiente). */
+    @Column(name = "motivo_espera", length = 300)
+    private String motivoEspera;
+
+    @Column(name = "aprobacion_automatica", nullable = false)
+    private Boolean aprobacionAutomatica = false;
+
     @OneToMany(mappedBy = "solicitud", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SolicitudEvidencia> evidencias = new ArrayList<>();
 
@@ -107,6 +121,18 @@ public class Solicitud {
 
     public String getComentarioGestion() { return comentarioGestion; }
     public void setComentarioGestion(String comentarioGestion) { this.comentarioGestion = comentarioGestion; }
+
+    public Boolean getUrgente() { return urgente; }
+    public void setUrgente(Boolean urgente) { this.urgente = urgente; }
+
+    public String getMotivoUrgencia() { return motivoUrgencia; }
+    public void setMotivoUrgencia(String motivoUrgencia) { this.motivoUrgencia = motivoUrgencia; }
+
+    public String getMotivoEspera() { return motivoEspera; }
+    public void setMotivoEspera(String motivoEspera) { this.motivoEspera = motivoEspera; }
+
+    public Boolean getAprobacionAutomatica() { return aprobacionAutomatica; }
+    public void setAprobacionAutomatica(Boolean aprobacionAutomatica) { this.aprobacionAutomatica = aprobacionAutomatica; }
 
     public List<SolicitudEvidencia> getEvidencias() { return evidencias; }
     public void setEvidencias(List<SolicitudEvidencia> evidencias) { this.evidencias = evidencias; }

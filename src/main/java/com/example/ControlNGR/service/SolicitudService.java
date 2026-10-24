@@ -56,6 +56,7 @@ public class SolicitudService {
     private final EvidenciaService evidenciaService;
     private final EmailService emailService;
     private final UsuarioActual usuarioActual;
+    private final AprobacionAutomaticaService aprobacionAutomatica;
     private final TransactionTemplate nuevaTransaccion;
 
     public SolicitudService(SolicitudRepository solicitudRepository,
@@ -70,6 +71,7 @@ public class SolicitudService {
                             EvidenciaService evidenciaService,
                             EmailService emailService,
                             UsuarioActual usuarioActual,
+                            AprobacionAutomaticaService aprobacionAutomatica,
                             PlatformTransactionManager transactionManager) {
         this.solicitudRepository = solicitudRepository;
         this.empleadoRepository = empleadoRepository;
@@ -83,6 +85,7 @@ public class SolicitudService {
         this.evidenciaService = evidenciaService;
         this.emailService = emailService;
         this.usuarioActual = usuarioActual;
+        this.aprobacionAutomatica = aprobacionAutomatica;
         this.nuevaTransaccion = new TransactionTemplate(transactionManager);
         this.nuevaTransaccion.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -146,6 +149,15 @@ public class SolicitudService {
                     + " debe adjuntar la evidencia (foto o PDF)");
         }
 
+        boolean urgente = Boolean.TRUE.equals(request.getUrgente()) && AprobacionAutomaticaService.TIPO_COMPENSACION.equals(tipo.getCodigo());
+        String motivoUrgencia = request.getMotivoUrgencia() == null ? "" : request.getMotivoUrgencia().trim();
+        if (urgente && motivoUrgencia.length() < 5) {
+            throw new IllegalArgumentException("Indique el motivo de la urgencia");
+        }
+        if (motivoUrgencia.length() > 500) {
+            throw new IllegalArgumentException("El motivo de la urgencia admite hasta 500 caracteres");
+        }
+
         validarSinSolapamiento(empleado.getId(), request.getFechaInicio(), request.getFechaFin(), null);
         validarSaldoDisponible(empleado, tipo, dias, null);
 
@@ -158,6 +170,8 @@ public class SolicitudService {
         solicitud.setDiasSolicitados(dias);
         solicitud.setMotivo(agregarNotaConflictos(empleado, request));
         solicitud.setEstado(Solicitud.PENDIENTE);
+        solicitud.setUrgente(urgente);
+        solicitud.setMotivoUrgencia(urgente ? motivoUrgencia : null);
         solicitud = solicitudRepository.save(solicitud);
 
         if (archivo != null && !archivo.isEmpty()) {
@@ -169,8 +183,11 @@ public class SolicitudService {
         historialRepository.save(new SolicitudHistorial(solicitud, null, Solicitud.PENDIENTE,
                 empleado.getUsuario(), "Solicitud registrada"));
 
-        notificarNuevaSolicitud(empleado, solicitud);
-        return new SolicitudResponseDTO(solicitud);
+        // Compensaciones de equipos con aprobación automática: se aprueban solas o pasan a la sala de espera
+        if (!aplicarReglasAutomaticas(solicitud)) {
+            notificarNuevaSolicitud(empleado, solicitud);
+        }
+        return conPosicion(new SolicitudResponseDTO(solicitud), solicitud);
     }
 
     // ==================== GESTIONAR ====================
@@ -198,8 +215,30 @@ public class SolicitudService {
             throw new IllegalStateException("La solicitud ya se encuentra en estado " + nuevo);
         }
 
+        String comentarioHistorial = comentarios;
+        if (Solicitud.APROBADO.equals(nuevo) && Solicitud.PENDIENTE.equals(anterior) && solicitud.getMotivoEspera() != null) {
+            comentarioHistorial = "Aprobada como excepción (" + solicitud.getMotivoEspera() + ")"
+                    + (comentarios != null && !comentarios.isBlank() ? ". " + comentarios.trim() : "");
+        }
+        Solicitud guardada = aplicarCambioEstado(solicitud, nuevo, aprobador, aprobador.getUsuario(), comentarios, comentarioHistorial);
+
+        // Si se rechaza una compensación ya aprobada, su cupo puede pasar a la primera en espera
+        if (Solicitud.APROBADO.equals(anterior) && AprobacionAutomaticaService.esCompensacion(guardada)) {
+            promoverEspera(guardada.getEmpleado());
+        }
+
+        notificarGestionSolicitud(guardada, aprobador, comentarios);
+        return new SolicitudResponseDTO(guardada);
+    }
+
+    /**
+     * Cambia el estado de la solicitud: mueve el saldo, guarda el historial y, al confirmar la
+     * transacción, actualiza el horario semanal. aprobador y usuario son null si lo hace el sistema.
+     */
+    private Solicitud aplicarCambioEstado(Solicitud solicitud, String nuevo, Empleado aprobador, Usuario usuario,
+                                          String comentarios, String comentarioHistorial) {
+        String anterior = solicitud.getEstado();
         TipoSaldo tipoSaldo = solicitud.getTipoSolicitud().getTipoSaldo();
-        Usuario usuario = aprobador.getUsuario();
         if (tipoSaldo != null) {
             if (Solicitud.APROBADO.equals(nuevo)) {
                 saldoService.registrar(solicitud.getEmpleado(), tipoSaldo, TipoMovimiento.CARGO,
@@ -221,7 +260,7 @@ public class SolicitudService {
             solicitud.setComentarioGestion(comentarios.trim());
         }
         Solicitud guardada = solicitudRepository.save(solicitud);
-        historialRepository.save(new SolicitudHistorial(guardada, anterior, nuevo, usuario, comentarios));
+        historialRepository.save(new SolicitudHistorial(guardada, anterior, nuevo, usuario, comentarioHistorial));
 
         // El horario semanal se actualiza cuando la transaccion se confirma
         Integer solicitudId = guardada.getId();
@@ -240,9 +279,149 @@ public class SolicitudService {
                 logger.error("Error al actualizar horarios semanales: {}", e.getMessage());
             }
         });
+        return guardada;
+    }
 
-        notificarGestionSolicitud(guardada, aprobador, comentarios);
-        return new SolicitudResponseDTO(guardada);
+    // ==================== APROBACIÓN AUTOMÁTICA ====================
+
+    /**
+     * Aplica las reglas del equipo a una compensación pendiente. Devuelve true si el equipo tiene
+     * aprobación automática (la solicitud quedó aprobada, en espera o rechazada) y false si sigue
+     * el flujo de siempre (la decide el supervisor).
+     */
+    private boolean aplicarReglasAutomaticas(Solicitud solicitud) {
+        if (!AprobacionAutomaticaService.esCompensacion(solicitud) || !Solicitud.PENDIENTE.equals(solicitud.getEstado())) {
+            return false;
+        }
+        Optional<AprobacionAutomatica> cfg = aprobacionAutomatica.bloquearConfiguracionActiva(solicitud.getEmpleado());
+        if (cfg.isEmpty()) return false;
+        AprobacionAutomaticaService.Resultado r = aprobacionAutomatica.evaluar(solicitud, cfg.get());
+        switch (r.accion()) {
+            case APROBAR -> aprobarAutomaticamente(solicitud, r.motivo());
+            case RECHAZAR -> {
+                solicitud.setMotivoEspera(null);
+                Solicitud guardada = aplicarCambioEstado(solicitud, Solicitud.RECHAZADO, null, null, r.motivo(),
+                        "Rechazada automáticamente: " + r.motivo());
+                notificarGestionSolicitud(guardada, null, r.motivo());
+            }
+            case ESPERA -> {
+                boolean nueva = solicitud.getMotivoEspera() == null;
+                solicitud.setMotivoEspera(recortar(r.motivo(), 300));
+                Solicitud guardada = solicitudRepository.save(solicitud);
+                if (nueva) {
+                    historialRepository.save(new SolicitudHistorial(guardada, Solicitud.PENDIENTE, Solicitud.PENDIENTE,
+                            null, "En sala de espera: " + r.motivo()));
+                    notificarEspera(guardada);
+                }
+            }
+        }
+        return true;
+    }
+
+    private void aprobarAutomaticamente(Solicitud solicitud, String motivo) {
+        solicitud.setMotivoEspera(null);
+        solicitud.setAprobacionAutomatica(true);
+        Solicitud guardada = aplicarCambioEstado(solicitud, Solicitud.APROBADO, null, null, motivo, motivo);
+        notificarGestionSolicitud(guardada, null, motivo);
+        notificarAprobadores(guardada, "Compensación aprobada automáticamente",
+                guardada.getEmpleado().getNombre() + " tiene una compensación aprobada automáticamente para el "
+                        + rango(guardada) + ".");
+    }
+
+    /** Al liberarse un cupo, aprueba en orden de llegada las solicitudes en espera que ahora cumplen las reglas. */
+    private void promoverEspera(Empleado empleado) {
+        Optional<AprobacionAutomatica> cfg = aprobacionAutomatica.bloquearConfiguracionActiva(empleado);
+        if (cfg.isEmpty() || !Boolean.TRUE.equals(cfg.get().getPromoverEspera())) return;
+        LocalDate hoy = LocalDate.now(AprobacionAutomaticaService.LIMA);
+        for (Solicitud s : solicitudRepository.findEnEsperaDeEquipo(empleado.getDepartamentoId())) {
+            if (Boolean.TRUE.equals(s.getUrgente()) || !AprobacionAutomaticaService.esCompensacion(s)
+                    || s.getFechaInicio().isBefore(hoy)) continue;
+            TipoSaldo tipoSaldo = s.getTipoSolicitud().getTipoSaldo();
+            if (tipoSaldo != null && saldoService.disponible(s.getEmpleado().getId(), tipoSaldo, s.getId())
+                    .compareTo(s.getDiasSolicitados()) < 0) continue;
+            AprobacionAutomaticaService.Resultado r = aprobacionAutomatica.evaluar(s, cfg.get());
+            if (r.accion() == AprobacionAutomaticaService.Accion.APROBAR) {
+                aprobarAutomaticamente(s, "Aprobada automáticamente al liberarse un cupo del equipo");
+            }
+        }
+    }
+
+    /** Cupos de compensación del equipo del usuario para la semana de la fecha. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> cuposCompensacion(LocalDate fecha) {
+        return aprobacionAutomatica.cupos(usuarioActual.empleadoRequerido(), fecha);
+    }
+
+    /** Todos los días a las 00:20: las solicitudes en espera cuya fecha ya pasó sin decisión se rechazan. */
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 20 0 * * *", zone = "America/Lima")
+    public void vencerSalaDeEspera() {
+        LocalDate ayer = LocalDate.now(AprobacionAutomaticaService.LIMA).minusDays(1);
+        String motivo = "No atendida antes de la fecha de inicio";
+        // Una transacción por solicitud: si una falla, las demás vencen igual
+        for (Integer id : solicitudRepository.findEsperaHasta(ayer).stream().map(Solicitud::getId).toList()) {
+            try {
+                nuevaTransaccion.executeWithoutResult(status -> solicitudRepository.findById(id)
+                        .filter(s -> Solicitud.PENDIENTE.equals(s.getEstado()))
+                        .ifPresent(s -> {
+                            Solicitud guardada = aplicarCambioEstado(s, Solicitud.RECHAZADO, null, null, motivo, "Rechazada automáticamente: " + motivo);
+                            logger.info("Sala de espera: solicitud {} vencida sin decisión", id);
+                            notificarGestionSolicitud(guardada, null, motivo);
+                        }));
+            } catch (Exception e) {
+                logger.error("Error al vencer la solicitud {} de la sala de espera: {}", id, e.getMessage());
+            }
+        }
+    }
+
+    /** Todos los días a las 08:00: recuerda a los aprobadores las solicitudes en espera que empiezan mañana. */
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 0 8 * * *", zone = "America/Lima")
+    public void recordarSalaDeEspera() {
+        LocalDate manana = LocalDate.now(AprobacionAutomaticaService.LIMA).plusDays(1);
+        try {
+            nuevaTransaccion.executeWithoutResult(status -> {
+                for (Solicitud s : solicitudRepository.findEsperaHasta(manana)) {
+                    if (!s.getFechaInicio().equals(manana)) continue;
+                    logger.info("Sala de espera: recordatorio a los aprobadores de la solicitud {}", s.getId());
+                    notificarAprobadores(s, "Solicitud en espera para mañana",
+                            s.getEmpleado().getNombre() + " tiene una solicitud de " + s.getTipoSolicitud().getNombre().toLowerCase()
+                                    + " en espera para el " + rango(s) + " (" + s.getMotivoEspera() + "). Si no se decide, se rechazará sola.");
+                }
+            });
+        } catch (Exception e) {
+            logger.error("Error al recordar la sala de espera: {}", e.getMessage());
+        }
+    }
+
+    /** Turno en la fila por cupo de su equipo y semana (por orden de llegada); las demás esperas no tienen número. */
+    private List<SolicitudResponseDTO> conPosiciones(List<Solicitud> solicitudes) {
+        Map<Integer, Integer> posiciones = posicionesEspera();
+        return solicitudes.stream().map(s -> {
+            SolicitudResponseDTO dto = new SolicitudResponseDTO(s);
+            dto.setPosicionEspera(posiciones.get(s.getId()));
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    private SolicitudResponseDTO conPosicion(SolicitudResponseDTO dto, Solicitud s) {
+        if (AprobacionAutomaticaService.esperaCupo(s) && Solicitud.PENDIENTE.equals(s.getEstado())) {
+            dto.setPosicionEspera(posicionesEspera().get(s.getId()));
+        }
+        return dto;
+    }
+
+    private Map<Integer, Integer> posicionesEspera() {
+        Map<String, Integer> contador = new HashMap<>();
+        Map<Integer, Integer> posiciones = new HashMap<>();
+        for (Solicitud s : solicitudRepository.findEnEspera()) {
+            if (!AprobacionAutomaticaService.esperaCupo(s)) continue;
+            String clave = s.getEmpleado().getDepartamentoId() + "|" + AprobacionAutomaticaService.lunes(s.getFechaInicio());
+            posiciones.put(s.getId(), contador.merge(clave, 1, Integer::sum));
+        }
+        return posiciones;
+    }
+
+    private static String recortar(String texto, int max) {
+        return texto == null || texto.length() <= max ? texto : texto.substring(0, max);
     }
 
     // ==================== EDITAR / ELIMINAR ====================
@@ -280,7 +459,11 @@ public class SolicitudService {
         Solicitud guardada = solicitudRepository.save(solicitud);
         historialRepository.save(new SolicitudHistorial(guardada, Solicitud.PENDIENTE, Solicitud.PENDIENTE,
                 editor.getUsuario(), "Solicitud editada"));
-        return new SolicitudResponseDTO(guardada);
+        // Si estaba en la sala de espera, se vuelven a revisar las reglas con las fechas nuevas
+        if (guardada.getMotivoEspera() != null) {
+            aplicarReglasAutomaticas(guardada);
+        }
+        return conPosicion(new SolicitudResponseDTO(guardada), guardada);
     }
 
     /** Elimina una solicitud propia y pendiente (con sus archivos). */
@@ -364,10 +547,9 @@ public class SolicitudService {
         Empleado aprobador = usuarioActual.empleadoRequerido();
         List<String> roles = reglaRepository.rolesQueAprueba(aprobador.getRol());
         if (roles.isEmpty()) return List.of();
-        return solicitudRepository.findPendientesDeRoles(roles).stream()
+        return conPosiciones(solicitudRepository.findPendientesDeRoles(roles).stream()
                 .filter(s -> !s.getEmpleado().getId().equals(aprobador.getId()))
-                .map(SolicitudResponseDTO::new)
-                .collect(Collectors.toList());
+                .toList());
     }
 
     /** Verifica conflictos de fecha para un empleado. */
@@ -384,8 +566,7 @@ public class SolicitudService {
 
     @Transactional(readOnly = true)
     public List<SolicitudResponseDTO> obtenerMisSolicitudes(Integer empleadoId) {
-        return solicitudRepository.findByEmpleadoIdOrderByFechaSolicitudDesc(empleadoId)
-                .stream().map(SolicitudResponseDTO::new).collect(Collectors.toList());
+        return conPosiciones(solicitudRepository.findByEmpleadoIdOrderByFechaSolicitudDesc(empleadoId));
     }
 
     @Transactional(readOnly = true)
@@ -554,6 +735,31 @@ public class SolicitudService {
         }
     }
 
+    /** Sala de espera: aviso a los aprobadores (las urgencias, destacadas). */
+    private void notificarEspera(Solicitud solicitud) {
+        if (Boolean.TRUE.equals(solicitud.getUrgente())) {
+            notificarAprobadores(solicitud, "Solicitud urgente por revisar",
+                    solicitud.getEmpleado().getNombre() + " pide una compensación urgente para el " + rango(solicitud)
+                            + ". Motivo: " + solicitud.getMotivoUrgencia());
+        } else {
+            notificarNuevaSolicitud(solicitud.getEmpleado(), solicitud);
+        }
+    }
+
+    private void notificarAprobadores(Solicitud solicitud, String titulo, String mensaje) {
+        try {
+            List<String> roles = reglaRepository.rolesAprobadores(solicitud.getEmpleado().getRol());
+            if (roles.isEmpty()) return;
+            for (Empleado aprobador : empleadoRepository.findActivosPorRoles(roles)) {
+                if (aprobador.getEmail() != null && !aprobador.getEmail().isEmpty()) {
+                    emailService.enviarAvisoSolicitud(aprobador.getEmail(), aprobador.getNombre(), titulo, mensaje);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error enviando aviso a los aprobadores: {}", e.getMessage());
+        }
+    }
+
     private void notificarGestionSolicitud(Solicitud solicitud, Empleado aprobador, String comentarios) {
         try {
             Empleado empleado = solicitud.getEmpleado();
@@ -561,7 +767,7 @@ public class SolicitudService {
                 emailService.enviarNotificacionSolicitud(empleado.getEmail(), empleado.getNombre(),
                         solicitud.getTipo(), solicitud.getEstado(), comentarios,
                         solicitud.getFechaInicio().format(DATE_FORMATTER), solicitud.getFechaFin().format(DATE_FORMATTER),
-                        aprobador != null ? aprobador.getNombre() : "Sistema");
+                        aprobador != null ? aprobador.getNombre() : "Aprobación automática (sistema)");
             }
         } catch (Exception e) {
             logger.error("Error enviando notificación de gestión: {}", e.getMessage());

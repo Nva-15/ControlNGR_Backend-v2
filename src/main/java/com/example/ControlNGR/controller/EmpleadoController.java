@@ -74,8 +74,14 @@ public class EmpleadoController {
      * del directorio (nombre, cargo, area, foto, cumpleaños).
      */
     private Object vista(Empleado empleado, Usuario lector) {
-        if (Roles.esAdmin(lector.getRol()) || esMismoPerfil(lector, empleado)
-                || Roles.puedeAdministrar(lector.getRol(), empleado.getRol())) {
+        if (Roles.esAdmin(lector.getRol()) || Roles.puedeAdministrar(lector.getRol(), empleado.getRol())) {
+            // Quien lo administra ve además su acceso: último ingreso y si debe cambiar la contraseña
+            Map<String, Object> m = objectMapper.convertValue(empleado, new TypeReference<LinkedHashMap<String, Object>>() {});
+            m.put("ultimoAcceso", empleado.getUltimoAcceso());
+            m.put("debeCambiarPassword", empleado.getDebeCambiarPassword());
+            return m;
+        }
+        if (esMismoPerfil(lector, empleado)) {
             return empleado;
         }
         Map<String, Object> m = objectMapper.convertValue(empleado, new TypeReference<LinkedHashMap<String, Object>>() {});
@@ -115,8 +121,9 @@ public class EmpleadoController {
         List<Object> contenido = page.getContent().stream().map(e -> {
             Object v = vista(e, lector);
             if (!verRostro) return v;
-            Map<String, Object> m = v instanceof Map<?, ?> ? new LinkedHashMap<>(objectMapper.convertValue(v, new TypeReference<Map<String, Object>>() {}))
-                    : objectMapper.convertValue(e, new TypeReference<LinkedHashMap<String, Object>>() {});
+            @SuppressWarnings("unchecked")
+            Map<String, Object> m = v instanceof Map<?, ?> mapa ? new LinkedHashMap<>((Map<String, Object>) mapa)
+                    : objectMapper.convertValue(v, new TypeReference<LinkedHashMap<String, Object>>() {});
             m.put("rostroRegistrado", conRostro.contains(e.getId()));
             return (Object) m;
         }).toList();

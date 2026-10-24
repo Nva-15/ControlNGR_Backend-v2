@@ -224,7 +224,8 @@ Con muchas PCs, TI puede distribuir `ca.crt` por directiva de grupo (GPO). Si fa
    - **Segmentos de red**: `10.92.104.%` (oficina) y `192.168.113.%` (VPN).
    - **Feriados** del año.
    - **Saldos y carga inicial** de vacaciones y días por compensar.
-   - **Asistencia y horarios**: qué roles marcan asistencia, cuáles trabajan con horario (aparecen en Horarios y en el reporte de asistencia) y la tolerancia de tardanza (10 minutos por defecto).
+   - **Roles y aprobaciones**: qué roles marcan asistencia y cuáles trabajan con horario (aparecen en Horarios y en el reporte de asistencia).
+   - **Reglas de marcación**: tolerancia de tardanza (10 minutos por defecto), anticipación para marcar la entrada (5 minutos) y salida automática.
 
 > Los empleados nuevos ingresan con su **DNI** y la contraseña inicial **`Soporte26$`**; el sistema les pide cambiarla la primera vez.
 
@@ -252,7 +253,7 @@ Luego, en **Inicio**, los botones *Marcar entrada / salida* abren la cámara y v
 
 - Cada persona registra su rostro **una sola vez**. Para repetirlo (cambio de apariencia, mala captura), su supervisor, jefatura o el admin lo **restablece** en **Empleados** (botón con ícono de persona tachada). Ahí también pueden registrarlo en persona.
 - En el panel admin → **Reconocimiento facial** puede ver quién ya registró su rostro y **probar** la marcación o un registro con la cámara, sin registrar asistencia ni guardar nada. Úselo con varias personas para calibrar el umbral.
-- En el panel admin → **Parámetros** se puede ajustar `UMBRAL_FACIAL` (0.4 más estricto, 0.6 más permisivo) o desactivar `MARCACION_FACIAL_OBLIGATORIA`.
+- En la misma sección se ajusta el umbral (0.4 más estricto, 0.6 más permisivo) y, en *Modo de marcación por equipo*, qué equipos marcan con cámara y cuáles con botón.
 
 ---
 

@@ -56,6 +56,14 @@ public class ModoMarcacionService {
                 .map(MarcacionEquipo::getModo).orElseGet(this::modoPorDefecto);
     }
 
+    /** Modo configurado de cada departamento (tabla pequeña: una consulta para toda una página). */
+    @Transactional(readOnly = true)
+    public Map<Integer, String> modosPorDepartamento() {
+        Map<Integer, String> m = new HashMap<>();
+        repository.findAll().forEach(x -> m.put(x.getDepartamento().getId(), x.getModo()));
+        return m;
+    }
+
     public boolean esFacial(Empleado empleado) {
         return MarcacionEquipo.FACIAL.equals(modo(empleado));
     }
@@ -66,16 +74,11 @@ public class ModoMarcacionService {
     public List<Map<String, Object>> listar() {
         Map<Integer, MarcacionEquipo> porDepto = new HashMap<>();
         repository.findAll().forEach(m -> porDepto.put(m.getDepartamento().getId(), m));
-        Set<Integer> conRostro = new HashSet<>(rostroRepository.findEmpleadosRegistrados());
+        // Conteos agrupados en la base (no se cargan los empleados)
         Map<Integer, int[]> conteo = new HashMap<>();
-        for (Empleado e : empleadoRepository.findByActivo(true)) {
-            if (e.getDepartamentoId() == null || e.getUsuario() == null
-                    || !Boolean.TRUE.equals(e.getUsuario().getTipoUsuario().getMarcaAsistencia())) {
-                continue;
-            }
-            int[] c = conteo.computeIfAbsent(e.getDepartamentoId(), k -> new int[2]);
-            c[0]++;
-            if (conRostro.contains(e.getId())) c[1]++;
+        for (Object[] f : empleadoRepository.contarMarcanPorDepartamento()) {
+            if (f[0] == null) continue;
+            conteo.put((Integer) f[0], new int[]{((Number) f[1]).intValue(), f[2] == null ? 0 : ((Number) f[2]).intValue()});
         }
         String porDefecto = modoPorDefecto();
         List<Map<String, Object>> lista = new ArrayList<>();

@@ -20,6 +20,7 @@ import com.example.ControlNGR.repository.DepartamentoRepository;
 import com.example.ControlNGR.repository.EmpleadoRepository;
 import com.example.ControlNGR.repository.SaldoRepository;
 import com.example.ControlNGR.repository.UsuarioRepository;
+import com.example.ControlNGR.security.Roles;
 
 @Service
 @Transactional
@@ -44,6 +45,9 @@ public class EmpleadoService {
 
     @Autowired
     private EmailService emailService;
+
+    @Autowired
+    private com.example.ControlNGR.repository.RostroEmpleadoRepository rostroEmpleadoRepository;
 
     /** Obtiene el perfil completo de un empleado. */
     public Map<String, Object> obtenerPerfilCompleto(Integer empleadoId) {
@@ -215,6 +219,34 @@ public class EmpleadoService {
     /** Obtiene todos los empleados. */
     public List<Empleado> findAll() {
         return empleadoRepository.findAll();
+    }
+
+    /**
+     * Pagina de empleados filtrada en la base. El DNI solo se busca entre quienes el lector puede ver con
+     * DNI: todos para el admin, los roles que administra para la gestion, nadie para el resto.
+     */
+    @Transactional(readOnly = true)
+    public org.springframework.data.domain.Page<Empleado> buscarPagina(String q, String estado, Integer departamentoId, String rol,
+                                                                       com.example.ControlNGR.entity.Usuario lector,
+                                                                       org.springframework.data.domain.Pageable pedido) {
+        Boolean activo = switch (estado == null ? "activos" : estado.trim().toLowerCase()) {
+            case "todos" -> null;
+            case "inactivos" -> false;
+            default -> true;
+        };
+        boolean dniTodos = Roles.esAdmin(lector.getRol());
+        java.util.List<String> rolesDni = dniTodos ? java.util.List.of() : Roles.PERSONAL.stream()
+                .filter(r -> Roles.puedeAdministrar(lector.getRol(), r)).toList();
+        return empleadoRepository.buscarPagina(com.example.ControlNGR.dto.Pagina.patron(q), activo, departamentoId,
+                rol == null || rol.isBlank() ? null : rol.trim().toLowerCase(), dniTodos,
+                rolesDni.isEmpty() ? java.util.List.of("-") : rolesDni, false, pedido);
+    }
+
+    /** Ids con rostro registrado dentro de una pagina. */
+    @Transactional(readOnly = true)
+    public java.util.Set<Integer> conRostroEntre(java.util.List<Empleado> empleados) {
+        if (empleados.isEmpty()) return java.util.Set.of();
+        return new java.util.HashSet<>(rostroEmpleadoRepository.findRegistradosEntre(empleados.stream().map(Empleado::getId).toList()));
     }
 
     /** Busca empleado por ID. */

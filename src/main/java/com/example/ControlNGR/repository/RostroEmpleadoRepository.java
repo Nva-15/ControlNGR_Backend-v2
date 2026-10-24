@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import java.util.Collection;
 import java.util.List;
 
 @Repository
@@ -22,6 +23,13 @@ public interface RostroEmpleadoRepository extends JpaRepository<RostroEmpleado, 
     /** Todas las muestras con su empleado (para las pruebas del panel admin). */
     @Query("SELECT r FROM RostroEmpleado r JOIN FETCH r.empleado")
     List<RostroEmpleado> findTodasConEmpleado();
+
+    /** Muestras de un grupo de empleados (una página), sin cargar las de todos. */
+    @Query("SELECT r FROM RostroEmpleado r WHERE r.empleado.id IN :ids")
+    List<RostroEmpleado> findDeEmpleados(@Param("ids") Collection<Integer> ids);
+
+    @Query("SELECT DISTINCT r.empleado.id FROM RostroEmpleado r WHERE r.empleado.id IN :ids")
+    List<Integer> findRegistradosEntre(@Param("ids") Collection<Integer> ids);
 
     @Query("SELECT DISTINCT r.empleado.id FROM RostroEmpleado r")
     List<Integer> findEmpleadosRegistrados();

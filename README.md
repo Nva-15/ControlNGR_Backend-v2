@@ -275,7 +275,8 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 | POST | `/api/face/registrar/{empleadoId}` | Registro en persona por su jefatura o el admin |
 | DELETE | `/api/face/{empleadoId}` | Restablecer (jefatura o admin) |
 | GET | `/api/face/registrados` | Ids con rostro registrado (jefaturas y admin) |
-| GET | `/api/face/admin/resumen` | Solo admin: quiénes marcan, si tienen rostro y con qué modo (`modo`) |
+| GET | `/api/face/admin/resumen` | Solo admin: contadores `{total, registrados, conFacial, pendientes, umbral, obligatorio, muestrasRequeridas}` (sin lista) |
+| GET | `/api/face/admin/colaboradores` | Solo admin, por páginas: `vista` (`pendientes` por defecto, `registrados`, `sin_registrar`, `facial`, `todos`), `departamentoId`, `q`, `pagina`, `tamano` |
 | POST | `/api/face/admin/probar-marcacion` | Solo admin: `{descriptor, empleadoId?}` → a quién reconoce y con qué distancia. **No registra asistencia** |
 | POST | `/api/face/admin/probar-registro` | Solo admin: `{descriptores}` → calidad de las capturas y si el rostro ya pertenece a alguien. **No guarda nada** |
 
@@ -290,6 +291,11 @@ La marcación (`POST /api/asistencia/registrar`) recibe además `descriptor: num
 
 ### Panel admin (`/api/admin/**`, solo rol `admin`)
 `mi-ip` · `parametros` · `segmentos-red` · `feriados` · `departamentos` · `tipos-usuario` · `reglas-aprobacion` · `tipos-solicitud` · `motivos-licencia` · `usuarios` (rol, estado, restablecer contraseña) · `saldos` (listado, `carga-inicial`, `ajuste`, movimientos) · `feriados-laborados` (listado y revertir) · `vacaciones/procesar` · `asistencia/roles` (GET configuración por rol con empleados activos, PUT `/{id}` `{marcaAsistencia, conHorario}`). · `marcacion-equipos` (GET modo por departamento con colaboradores y rostros registrados, PUT `/{departamentoId}` `{modo: "FACIAL" | "BOTON"}`) · `aprobacion-automatica` (GET reglas por departamento, PUT `/{departamentoId}` `{activo, cupoSemanal, maximoPorEmpleado, minimoEnTurno, antelacionHoras, alLlenarse, promoverEspera}`). `GET /api/empleados/roles` también devuelve `marcaAsistencia` y `conHorario`.
+
+**Listas paginadas (escalan con el personal).** El servidor filtra y entrega solo la página que se muestra: `{contenido, total, pagina, tamano}`, 20 por defecto y 100 como máximo, ordenada por nombre.
+- `GET /api/empleados/pagina?q&departamentoId&rol&estado&pagina&tamano` (`estado`: `activos` por defecto, `inactivos`, `todos`). Aplica las mismas reglas de datos reservados que `/api/empleados`; el DNI solo se busca entre quienes el lector puede ver con DNI. Al admin y a la gestión les agrega `rostroRegistrado`. Con `exportar=true` acepta hasta 5000 por página (Excel/PDF de todo lo filtrado).
+- `GET /api/admin/saldos/pagina` con los mismos filtros (solo roles que registran solicitudes); los saldos se calculan solo para la página.
+- Índices `idx_empleados_activo_nombre` y `idx_empleados_depto_activo_nombre` (V13). Con 2.036 empleados de prueba: Empleados pasó de 885 ms / 724 KB a 50 ms / 8 KB y Saldos de 4,0 s / 631 KB a 0,1 s / 6 KB.
 
 Los empleados se registran con `POST /api/empleados` (admin, gerencia y **supervisores**; el supervisor solo registra personal operativo: técnico, HD, NOC y BO). Se crea también su usuario: el DNI como usuario y la contraseña inicial `Soporte26$`, que debe cambiar en su primer ingreso. Solo el admin y la gerencia pueden indicar otro usuario u otra contraseña inicial.
 

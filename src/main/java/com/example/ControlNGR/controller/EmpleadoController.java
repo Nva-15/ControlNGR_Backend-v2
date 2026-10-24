@@ -10,6 +10,7 @@ import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.example.ControlNGR.dto.Pagina;
 import com.example.ControlNGR.dto.EmpleadoRequestDTO;
 import com.example.ControlNGR.entity.Empleado;
 import com.example.ControlNGR.entity.Usuario;
@@ -91,6 +92,35 @@ public class EmpleadoController {
     @GetMapping
     public ResponseEntity<List<Object>> getAllEmpleados() {
         return ResponseEntity.ok(vistas(empleadoService.findAll()));
+    }
+
+    /**
+     * Empleados por paginas con filtros (el servidor filtra; la pantalla recibe solo lo que muestra).
+     * estado: activos (por defecto), inactivos o todos. Con exportar=true se aceptan hasta 5000 por pagina.
+     * Para el admin y la gestion incluye si tiene rostro registrado.
+     */
+    @GetMapping("/pagina")
+    public ResponseEntity<?> pagina(@RequestParam(value = "q", required = false) String q,
+                                    @RequestParam(value = "departamentoId", required = false) Integer departamentoId,
+                                    @RequestParam(value = "rol", required = false) String rol,
+                                    @RequestParam(value = "estado", required = false) String estado,
+                                    @RequestParam(value = "pagina", required = false) Integer pagina,
+                                    @RequestParam(value = "tamano", required = false) Integer tamano,
+                                    @RequestParam(value = "exportar", required = false) Boolean exportar) {
+        Usuario lector = usuarioActual.requerido();
+        var page = empleadoService.buscarPagina(q, estado, departamentoId, rol, lector,
+                Pagina.pedido(pagina, tamano, Boolean.TRUE.equals(exportar)));
+        boolean verRostro = Roles.esAdmin(lector.getRol()) || Roles.esGestion(lector.getRol());
+        Set<Integer> conRostro = verRostro ? empleadoService.conRostroEntre(page.getContent()) : Set.of();
+        List<Object> contenido = page.getContent().stream().map(e -> {
+            Object v = vista(e, lector);
+            if (!verRostro) return v;
+            Map<String, Object> m = v instanceof Map<?, ?> ? new LinkedHashMap<>(objectMapper.convertValue(v, new TypeReference<Map<String, Object>>() {}))
+                    : objectMapper.convertValue(e, new TypeReference<LinkedHashMap<String, Object>>() {});
+            m.put("rostroRegistrado", conRostro.contains(e.getId()));
+            return (Object) m;
+        }).toList();
+        return ResponseEntity.ok(Pagina.de(page, contenido));
     }
 
     /** Obtiene un empleado por ID. */

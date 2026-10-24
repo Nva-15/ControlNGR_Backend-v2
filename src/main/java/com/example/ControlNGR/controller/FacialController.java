@@ -83,6 +83,17 @@ public class FacialController {
         return ResponseEntity.ok(facialService.resumen());
     }
 
+    /** Quienes marcan asistencia, por paginas y con filtros (no se envia la lista completa). */
+    @GetMapping("/admin/colaboradores")
+    public ResponseEntity<?> colaboradores(@RequestParam(value = "vista", required = false) String vista,
+                                           @RequestParam(value = "q", required = false) String q,
+                                           @RequestParam(value = "departamentoId", required = false) Integer departamentoId,
+                                           @RequestParam(value = "pagina", required = false) Integer pagina,
+                                           @RequestParam(value = "tamano", required = false) Integer tamano) {
+        soloAdmin();
+        return ResponseEntity.ok(facialService.colaboradores(vista, q, departamentoId, pagina, tamano));
+    }
+
     public record PruebaMarcacionRequest(double[] descriptor, Integer empleadoId) {}
 
     /** Prueba de marcacion: a quien reconoce el sistema. No registra asistencia. */

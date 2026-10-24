@@ -198,37 +198,58 @@ public class FacialService {
 
     // ------------------------------------------------------------------ pruebas (panel admin)
 
-    /** Resumen para el panel admin: quienes marcan asistencia y si tienen rostro registrado. */
+    /** Vistas de la lista de colaboradores del panel de reconocimiento facial. */
+    public static final java.util.Set<String> VISTAS = java.util.Set.of("pendientes", "registrados", "sin_registrar", "facial", "todos");
+
+    /** Resumen para el panel admin: solo contadores (la lista se pide por paginas). */
     @Transactional(readOnly = true)
     public Map<String, Object> resumen() {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("total", contar("todos"));
+        r.put("registrados", contar("registrados"));
+        r.put("conFacial", contar("facial"));
+        r.put("pendientes", contar("pendientes"));
+        r.put("umbral", umbral());
+        r.put("obligatorio", MarcacionEquipo.FACIAL.equals(modoMarcacion.modoPorDefecto()));
+        r.put("muestrasRequeridas", muestrasRequeridas());
+        return r;
+    }
+
+    private long contar(String vista) {
+        return empleadoRepository.buscarParaFacial(vista, null, null, facialPorDefecto(),
+                org.springframework.data.domain.PageRequest.of(0, 1)).getTotalElements();
+    }
+
+    private boolean facialPorDefecto() {
+        return MarcacionEquipo.FACIAL.equals(modoMarcacion.modoPorDefecto());
+    }
+
+    /** Una pagina de quienes marcan asistencia, con su rostro y el modo de su equipo. */
+    @Transactional(readOnly = true)
+    public com.example.ControlNGR.dto.Pagina<Map<String, Object>> colaboradores(String vista, String q, Integer departamentoId,
+                                                                                Integer pagina, Integer tamano) {
+        String v = vista == null || vista.isBlank() ? "pendientes" : vista.trim().toLowerCase();
+        if (!VISTAS.contains(v)) throw new IllegalArgumentException("Vista no válida: " + vista);
+        var page = empleadoRepository.buscarParaFacial(v, com.example.ControlNGR.dto.Pagina.patron(q), departamentoId,
+                facialPorDefecto(), com.example.ControlNGR.dto.Pagina.pedido(pagina, tamano, false));
+        List<Integer> ids = page.getContent().stream().map(Empleado::getId).toList();
         Map<Integer, List<RostroEmpleado>> porEmpleado = new HashMap<>();
-        for (RostroEmpleado r : rostroRepository.findTodasConEmpleado()) {
-            porEmpleado.computeIfAbsent(r.getEmpleado().getId(), k -> new ArrayList<>()).add(r);
-        }
-        List<Map<String, Object>> empleados = new ArrayList<>();
-        for (Empleado e : empleadoRepository.findByActivo(true)) {
-            if (e.getUsuario() == null || !Boolean.TRUE.equals(e.getUsuario().getTipoUsuario().getMarcaAsistencia())) {
-                continue;
+        if (!ids.isEmpty()) {
+            for (RostroEmpleado m : rostroRepository.findDeEmpleados(ids)) {
+                porEmpleado.computeIfAbsent(m.getEmpleado().getId(), k -> new ArrayList<>()).add(m);
             }
+        }
+        Map<Integer, String> modos = modoMarcacion.modosPorDepartamento();
+        String porDefecto = modoMarcacion.modoPorDefecto();
+        return com.example.ControlNGR.dto.Pagina.de(page, e -> {
             List<RostroEmpleado> muestras = porEmpleado.getOrDefault(e.getId(), List.of());
             Map<String, Object> fila = datosEmpleado(e);
             fila.put("registrado", !muestras.isEmpty());
             fila.put("muestras", muestras.size());
-            fila.put("registradoEl", muestras.stream().map(RostroEmpleado::getCreatedAt)
-                    .min(Comparator.naturalOrder()).orElse(null));
-            fila.put("modo", modoMarcacion.modo(e));
-            empleados.add(fila);
-        }
-        empleados.sort(Comparator.comparing(f -> String.valueOf(f.get("nombre"))));
-        Map<String, Object> r = new LinkedHashMap<>();
-        r.put("total", empleados.size());
-        r.put("registrados", empleados.stream().filter(f -> Boolean.TRUE.equals(f.get("registrado"))).count());
-        r.put("umbral", umbral());
-        r.put("obligatorio", MarcacionEquipo.FACIAL.equals(modoMarcacion.modoPorDefecto()));
-        r.put("conFacial", empleados.stream().filter(f -> MarcacionEquipo.FACIAL.equals(f.get("modo"))).count());
-        r.put("muestrasRequeridas", muestrasRequeridas());
-        r.put("empleados", empleados);
-        return r;
+            fila.put("registradoEl", muestras.stream().map(RostroEmpleado::getCreatedAt).min(Comparator.naturalOrder()).orElse(null));
+            fila.put("modo", e.getDepartamentoId() == null ? porDefecto : modos.getOrDefault(e.getDepartamentoId(), porDefecto));
+            return fila;
+        });
     }
 
     /**

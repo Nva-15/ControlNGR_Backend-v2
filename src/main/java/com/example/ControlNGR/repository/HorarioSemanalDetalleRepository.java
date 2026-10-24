@@ -78,4 +78,11 @@ public interface HorarioSemanalDetalleRepository extends JpaRepository<HorarioSe
            "WHERE d.horarioSemanal.id = :semanaId " +
            "ORDER BY d.empleado.nombre ASC, d.fecha ASC")
     List<HorarioSemanalDetalle> findByHorarioSemanalIdOrdenado(@Param("semanaId") Integer semanaId);
+
+    /** Días publicados (semana activa) de los empleados activos de un equipo en una fecha. */
+    @Query("SELECT d FROM HorarioSemanalDetalle d WHERE d.fecha = :fecha AND d.horarioSemanal.estado = 'activo' " +
+           "AND d.empleado.departamento.id = :departamentoId AND d.empleado.activo = true")
+    List<HorarioSemanalDetalle> findPublicadosDeEquipoEnFecha(@Param("departamentoId") Integer departamentoId,
+                                                              @Param("fecha") LocalDate fecha);
+
 }

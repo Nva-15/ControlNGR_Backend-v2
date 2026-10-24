@@ -226,6 +226,14 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 - No se permiten dos solicitudes propias que se crucen en fechas.
 - Cada cambio de estado queda en `solicitud_historial`, y cada movimiento de días en `movimientos_saldo`, con el saldo resultante.
 
+**Aprobación automática de compensaciones** (panel maestro → *Aprobación automática*, por departamento)
+- Cada equipo define: activo, cupo semanal del equipo (días, lunes a domingo), máximo por empleado por semana, mínimo de personas en turno por día, antelación mínima (horas), qué hacer al llenarse el cupo (`ESPERA` o `RECHAZO`) y si se promueve la primera en espera cuando se libera un cupo. Valores iniciales: Soporte Técnico 4/1/4/48 h, HD 3/1/3/48 h, NOC 1/1/2/72 h. Los equipos sin configurar siguen el flujo manual. Cada cambio guarda quién y cuándo.
+- Por orden de llegada, una compensación que cumple todas las reglas se aprueba al crearla (o al editarla). La cobertura usa el horario publicado: no se aprueba si el día no está publicado, si el colaborador no tiene turno ese día o si quedarían menos personas en turno que el mínimo.
+- Si no cumple, queda **pendiente en sala de espera** con el motivo (`motivo_espera`), visible para el colaborador y el supervisor. Solo se rechaza sola si el cupo del equipo está lleno y el equipo está en `RECHAZO`.
+- **Urgencia personal**: casilla con motivo obligatorio; siempre la decide el supervisor y aparece primero en *Por aprobar*. Aprobar una solicitud en espera queda en el historial como *aprobada como excepción*.
+- Al rechazar una compensación aprobada se aprueba sola la primera en espera por cupo que ya cumpla (si el equipo tiene *promover*). Las que esperan por cupo muestran su número en la fila.
+- Tareas diarias (hora de Lima): 08:00 recordatorio a los aprobadores de las que empiezan mañana; 00:20 se rechazan las que siguen en espera con fecha de inicio pasada (*No atendida antes de la fecha de inicio*).
+
 ---
 
 ## 5. Endpoints nuevos o modificados (para el frontend)
@@ -249,12 +257,13 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 |---|---|---|
 | GET | `/api/solicitudes/tipos` | Catálogo de tipos activos |
 | GET | `/api/solicitudes/motivos-licencia` | Catálogo de motivos |
-| POST | `/api/solicitudes/crear` (JSON) | `{tipo, fechaInicio, fechaFin, motivo}` |
+| POST | `/api/solicitudes/crear` (JSON) | `{tipo, fechaInicio, fechaFin, motivo, urgente, motivoUrgencia}` (urgencia solo en compensación). La respuesta incluye `motivoEspera`, `posicionEspera` y `aprobacionAutomatica` |
 | POST | `/api/solicitudes/crear` (multipart) | Parte `solicitud` (JSON, incluye `motivoLicenciaId` si es licencia) y parte `archivo` |
 | GET | `/api/solicitudes/pendientes-por-aprobar` | Solo las que el usuario puede aprobar |
 | GET | `/api/solicitudes/roles-a-cargo` | Roles cuyas solicitudes aprueba el usuario |
 | PUT | `/api/solicitudes/gestionar/{id}` | `{estado: "aprobado" \| "rechazado", comentarios}`. El aprobador es el usuario del token |
 | GET | `/api/solicitudes/{id}/historial` | Cambios de estado |
+| GET | `/api/solicitudes/cupos-compensacion?fecha=` | Cupo del equipo y del usuario en la semana de la fecha (`activo: false` si su equipo no tiene aprobación automática) |
 | GET | `/api/solicitudes/{id}/evidencias/{evidenciaId}` | Descarga del archivo (solicitante, aprobadores, gerencia y admin) |
 
 ### Reconocimiento facial
@@ -279,7 +288,7 @@ La marcación (`POST /api/asistencia/registrar`) recibe además `descriptor: num
 | GET | `/api/saldos/empleado/{id}` | Para jefaturas, supervisores y admin |
 
 ### Panel admin (`/api/admin/**`, solo rol `admin`)
-`mi-ip` · `parametros` · `segmentos-red` · `feriados` · `departamentos` · `tipos-usuario` · `reglas-aprobacion` · `tipos-solicitud` · `motivos-licencia` · `usuarios` (rol, estado, restablecer contraseña) · `saldos` (listado, `carga-inicial`, `ajuste`, movimientos) · `feriados-laborados` (listado y revertir) · `vacaciones/procesar` · `asistencia/roles` (GET configuración por rol con empleados activos, PUT `/{id}` `{marcaAsistencia, conHorario}`). `GET /api/empleados/roles` también devuelve `marcaAsistencia` y `conHorario`.
+`mi-ip` · `parametros` · `segmentos-red` · `feriados` · `departamentos` · `tipos-usuario` · `reglas-aprobacion` · `tipos-solicitud` · `motivos-licencia` · `usuarios` (rol, estado, restablecer contraseña) · `saldos` (listado, `carga-inicial`, `ajuste`, movimientos) · `feriados-laborados` (listado y revertir) · `vacaciones/procesar` · `asistencia/roles` (GET configuración por rol con empleados activos, PUT `/{id}` `{marcaAsistencia, conHorario}`). · `aprobacion-automatica` (GET reglas por departamento, PUT `/{departamentoId}` `{activo, cupoSemanal, maximoPorEmpleado, minimoEnTurno, antelacionHoras, alLlenarse, promoverEspera}`). `GET /api/empleados/roles` también devuelve `marcaAsistencia` y `conHorario`.
 
 Los empleados se registran con `POST /api/empleados` (admin, gerencia y **supervisores**; el supervisor solo registra personal operativo: técnico, HD, NOC y BO). Se crea también su usuario: el DNI como usuario y la contraseña inicial `Soporte26$`, que debe cambiar en su primer ingreso. Solo el admin y la gerencia pueden indicar otro usuario u otra contraseña inicial.
 

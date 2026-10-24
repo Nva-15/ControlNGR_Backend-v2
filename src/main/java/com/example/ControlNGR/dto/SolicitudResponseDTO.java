@@ -27,6 +27,13 @@ public class SolicitudResponseDTO {
     private LocalDateTime fechaAprobacion;
     private String comentarioGestion;
     private boolean tieneConflictos;
+    private boolean urgente;
+    private String motivoUrgencia;
+    /** Motivo por el que quedó en la sala de espera (pendiente para el supervisor). */
+    private String motivoEspera;
+    /** Posición en la sala de espera de su equipo para esa semana (1 = la primera). */
+    private Integer posicionEspera;
+    private boolean aprobacionAutomatica;
     private List<EvidenciaDTO> evidencias;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
@@ -62,6 +69,10 @@ public class SolicitudResponseDTO {
         this.comentarioGestion = solicitud.getComentarioGestion();
         this.evidencias = solicitud.getEvidencias().stream().map(EvidenciaDTO::de).toList();
         this.tieneConflictos = false;
+        this.urgente = Boolean.TRUE.equals(solicitud.getUrgente());
+        this.motivoUrgencia = solicitud.getMotivoUrgencia();
+        this.motivoEspera = Solicitud.PENDIENTE.equals(solicitud.getEstado()) ? solicitud.getMotivoEspera() : null;
+        this.aprobacionAutomatica = Boolean.TRUE.equals(solicitud.getAprobacionAutomatica());
     }
 
     public Integer getId() { return id; }
@@ -86,4 +97,10 @@ public class SolicitudResponseDTO {
 
     public boolean isTieneConflictos() { return tieneConflictos; }
     public void setTieneConflictos(boolean tieneConflictos) { this.tieneConflictos = tieneConflictos; }
+    public boolean isUrgente() { return urgente; }
+    public String getMotivoUrgencia() { return motivoUrgencia; }
+    public String getMotivoEspera() { return motivoEspera; }
+    public Integer getPosicionEspera() { return posicionEspera; }
+    public void setPosicionEspera(Integer posicionEspera) { this.posicionEspera = posicionEspera; }
+    public boolean isAprobacionAutomatica() { return aprobacionAutomatica; }
 }

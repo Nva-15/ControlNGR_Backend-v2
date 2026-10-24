@@ -85,6 +85,18 @@ public class Empleado {
         return usuario != null ? usuario.getActivo() : Boolean.FALSE;
     }
 
+    /** Ultimo ingreso al sistema. No va en el JSON de la entidad: EmpleadoController lo agrega solo para quien administra. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public java.time.LocalDateTime getUltimoAcceso() {
+        return usuario != null ? usuario.getUltimoAcceso() : null;
+    }
+
+    /** Aun no cambia la contraseña inicial o restablecida (igual que ultimoAcceso, solo para quien administra). */
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    public Boolean getDebeCambiarPassword() {
+        return usuario != null && Boolean.TRUE.equals(usuario.getDebeCambiarPassword());
+    }
+
     @JsonProperty("departamentoId")
     public Integer getDepartamentoId() {
         return departamento != null ? departamento.getId() : null;

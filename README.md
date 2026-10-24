@@ -188,6 +188,7 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 - Para los roles con horario, la entrada solo se permite si el día está programado como laboral en el horario semanal activo o, si no hay uno, en el horario base. Siempre con validación de red y, si su equipo marca con reconocimiento facial, con verificación del rostro.
 - La fecha y la hora las pone el servidor; los valores que envíe el cliente se ignoran.
 - Cada usuario solo puede marcar su propia asistencia.
+- **Anticipación para marcar entrada: 5 minutos** (parámetro `ANTICIPACION_ENTRADA_MINUTOS`, entero de 0 a 720; 0 = desde la hora exacta). Nadie con horario puede marcar la entrada antes de ese tiempo del inicio de su turno (turno 08:00 → desde las 07:55); el servidor lo rechaza y la pantalla de inicio muestra desde qué hora puede marcar. Se cambia en el panel admin → **Asistencia y horarios**.
 - **Tolerancia de tardanza: 10 minutos** (parámetro `TOLERANCIA_TARDANZA_MINUTOS`, entero de 0 a 120). Se cambia en el panel admin → **Asistencia y horarios** y se aplica igual al marcar y en el reporte.
 - **Salida automática**: si el colaborador no marca su salida, el sistema la registra sola **12 horas después de la entrada** (parámetro `SALIDA_AUTOMATICA_HORAS`, 1 a 23, en el panel admin → **Asistencia y horarios**). Ejemplo: entrada 17:00 → salida 05:00 del día siguiente. Queda marcada como *automática* (en Inicio y en el reporte) y no se puede justificar con mensaje. La revisión corre cada 5 minutos, al iniciar el sistema y antes de cada marcación, así nadie queda con una salida pendiente.
 - Un turno que cruza la medianoche (por ejemplo 22:00 a 06:00) se muestra en Inicio como "Desde ayer" para poder marcar la salida.
@@ -249,7 +250,7 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 |---|---|---|
 | GET | `/api/asistencia/verificar-red` | `{ip, dentroDeRed, mensaje}` para avisar antes de marcar |
 | POST | `/api/asistencia/registrar` | `{tipo: "entrada" \| "salida"}`. Si fue feriado, la respuesta trae `feriado` y `diasCompensacionAbonados` |
-| GET | `/api/asistencia/mi-configuracion` | `{marcaAsistencia, conHorario, toleranciaMinutos}` del usuario |
+| GET | `/api/asistencia/mi-configuracion` | `{marcaAsistencia, conHorario, toleranciaMinutos, anticipacionMinutos, horasSalidaAutomatica}` del usuario |
 | PUT | `/api/asistencia/{id}/mensaje` | `{tipo, mensaje}`: justificación del propio colaborador sobre su marcación (una vez, hasta 30 min después). El reporte trae `mensajeEntrada` y `mensajeSalida` |
 
 ### Solicitudes

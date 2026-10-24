@@ -426,22 +426,33 @@ public class AdminService {
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> saldosTodos() {
-        List<Map<String, Object>> r = new ArrayList<>();
-        for (Empleado e : empleadoRepository.findAll()) {
-            Map<String, SaldoResumenDTO> resumen = saldoService.resumen(e.getId());
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("empleadoId", e.getId());
-            m.put("empleadoNombre", e.getNombre());
-            m.put("dni", e.getDni());
-            m.put("rol", e.getRol());
-            m.put("departamento", e.getDepartamentoNombre());
-            m.put("activo", e.getActivo());
-            m.put("ingreso", e.getIngreso());
-            m.put("vacaciones", resumen.get("vacaciones"));
-            m.put("compensacion", resumen.get("compensacion"));
-            r.add(m);
-        }
-        return r;
+        return empleadoRepository.findAll().stream().map(this::filaSaldo).toList();
+    }
+
+    /** Saldos por paginas con filtros (solo se calculan los de la pagina; solo roles que registran solicitudes). */
+    @Transactional(readOnly = true)
+    public com.example.ControlNGR.dto.Pagina<Map<String, Object>> saldosPagina(String q, String estado, Integer departamentoId,
+                                                                               String rol, Integer pagina, Integer tamano) {
+        Boolean activo = "todos".equalsIgnoreCase(estado) ? null : !"inactivos".equalsIgnoreCase(estado);
+        var page = empleadoRepository.buscarPagina(com.example.ControlNGR.dto.Pagina.patron(q), activo, departamentoId,
+                rol == null || rol.isBlank() ? null : rol.trim().toLowerCase(), true, List.of("-"), true,
+                com.example.ControlNGR.dto.Pagina.pedido(pagina, tamano, false));
+        return com.example.ControlNGR.dto.Pagina.de(page, this::filaSaldo);
+    }
+
+    private Map<String, Object> filaSaldo(Empleado e) {
+        Map<String, SaldoResumenDTO> resumen = saldoService.resumen(e.getId());
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("empleadoId", e.getId());
+        m.put("empleadoNombre", e.getNombre());
+        m.put("dni", e.getDni());
+        m.put("rol", e.getRol());
+        m.put("departamento", e.getDepartamentoNombre());
+        m.put("activo", e.getActivo());
+        m.put("ingreso", e.getIngreso());
+        m.put("vacaciones", resumen.get("vacaciones"));
+        m.put("compensacion", resumen.get("compensacion"));
+        return m;
     }
 
     /**

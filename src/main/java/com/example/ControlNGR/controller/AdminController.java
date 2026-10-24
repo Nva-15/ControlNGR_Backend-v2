@@ -226,6 +226,16 @@ public class AdminController {
         return ResponseEntity.ok(adminService.saldosTodos());
     }
 
+    @GetMapping("/saldos/pagina")
+    public ResponseEntity<?> saldosPagina(@RequestParam(value = "q", required = false) String q,
+                                          @RequestParam(value = "estado", required = false) String estado,
+                                          @RequestParam(value = "departamentoId", required = false) Integer departamentoId,
+                                          @RequestParam(value = "rol", required = false) String rol,
+                                          @RequestParam(value = "pagina", required = false) Integer pagina,
+                                          @RequestParam(value = "tamano", required = false) Integer tamano) {
+        return ResponseEntity.ok(adminService.saldosPagina(q, estado, departamentoId, rol, pagina, tamano));
+    }
+
     @GetMapping("/saldos/{empleadoId}/movimientos")
     public ResponseEntity<List<MovimientoSaldoDTO>> movimientos(@PathVariable("empleadoId") Integer empleadoId,
                                                                 @RequestParam(value = "tipo", required = false) String tipo) {

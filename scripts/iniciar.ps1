@@ -141,6 +141,9 @@ $puerto = Get-ValorEnv ([System.IO.File]::ReadAllLines($rutaEnv)) 'HTTPS_PORT'
 if (-not $puerto) { $puerto = '443' }
 $enlace = if ($puerto -eq '443') { "https://$ipEquipo" } else { "https://${ipEquipo}:$puerto" }
 
+Write-Host ''
+Write-Host "Enlace del sistema:  $enlace" -ForegroundColor Cyan
+Write-Host 'Comprobando que responda (puede tardar hasta un minuto)...'
 $responde = $false
 for ($i = 0; $i -lt 30 -and -not $responde; $i++) {
     try {

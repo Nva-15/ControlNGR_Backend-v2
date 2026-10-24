@@ -185,22 +185,22 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
   - *Horario y reporte de asistencia*: el rol recibe horario (aparece en **Horarios**), aparece en el **reporte de asistencia** (y en su filtro de roles) y se le calculan tardanzas.
   - Un rol que marca **sin** horario tiene horario flexible: marca cualquier día, sin tardanzas. Un rol que no marca tampoco tiene horario.
   - Valores iniciales: director, gerente y jefe marcan con horario flexible; el resto marca con horario; el admin no marca.
-- Para los roles con horario, la entrada solo se permite si el día está programado como laboral en el horario semanal activo o, si no hay uno, en el horario base. Siempre con validación de red y reconocimiento facial.
+- Para los roles con horario, la entrada solo se permite si el día está programado como laboral en el horario semanal activo o, si no hay uno, en el horario base. Siempre con validación de red y, si su equipo marca con reconocimiento facial, con verificación del rostro.
 - La fecha y la hora las pone el servidor; los valores que envíe el cliente se ignoran.
 - Cada usuario solo puede marcar su propia asistencia.
 - **Tolerancia de tardanza: 10 minutos** (parámetro `TOLERANCIA_TARDANZA_MINUTOS`, entero de 0 a 120). Se cambia en el panel admin → **Asistencia y horarios** y se aplica igual al marcar y en el reporte.
 - **Salida automática**: si el colaborador no marca su salida, el sistema la registra sola **12 horas después de la entrada** (parámetro `SALIDA_AUTOMATICA_HORAS`, 1 a 23, en el panel admin → **Asistencia y horarios**). Ejemplo: entrada 17:00 → salida 05:00 del día siguiente. Queda marcada como *automática* (en Inicio y en el reporte) y no se puede justificar con mensaje. La revisión corre cada 5 minutos, al iniciar el sistema y antes de cada marcación, así nadie queda con una salida pendiente.
 - Un turno que cruza la medianoche (por ejemplo 22:00 a 06:00) se muestra en Inicio como "Desde ayer" para poder marcar la salida.
-- La marcación se registra **en cuanto se verifica el rostro**. Después el colaborador ve la hora registrada y puede dejar, si quiere, un **mensaje breve para su supervisor** (hasta 300 caracteres, uno por marcación, dentro de los 30 minutos siguientes). El mensaje aparece en *Reportes de asistencia*.
+- La marcación se registra **en cuanto se verifica el rostro** (modo facial) o al confirmar (modo botón). Después el colaborador ve la hora registrada y puede dejar, si quiere, un **mensaje breve para su supervisor** (hasta 300 caracteres, uno por marcación, dentro de los 30 minutos siguientes). El mensaje aparece en *Reportes de asistencia*.
 - **Un empleado inactivo no puede ingresar al sistema**: al desactivarlo también se bloquea su usuario y su sesión abierta deja de funcionar.
 
 **Reconocimiento facial**
-- Toda marcación de entrada y salida exige el rostro (parámetro `MARCACION_FACIAL_OBLIGATORIA`, activo por defecto). Si se desactiva, solo quienes tienen rostro registrado marcan con cámara.
+- **Modo de marcación por equipo** (panel admin → *Reconocimiento facial*, tabla `marcacion_equipo`): `FACIAL` marca con la cámara y exige el rostro registrado; `BOTON` marca con el botón y una confirmación, sin cámara, **aunque la persona tenga el rostro registrado** (el rostro se conserva para cuando el equipo pase a `FACIAL`). Lo decide el equipo, no la persona. Valores iniciales: NOC `FACIAL` y los demás `BOTON`. Quien no tiene equipo configurado usa el parámetro `MARCACION_FACIAL_OBLIGATORIA` (Sí = facial, No = botón; `false` desde V11). Cada cambio guarda quién y cuándo.
 - El navegador (face-api.js, modelos locales en `/models`) calcula un descriptor de 128 números; **la comparación la hace el servidor** contra las muestras registradas (distancia máxima `UMBRAL_FACIAL`, 0.5 por defecto). Los descriptores guardados nunca se envían al navegador.
 - Antes de capturar se comprueba que sea una persona real (parpadeo). No se guardan fotos.
 - Registro: cada colaborador registra su rostro **una sola vez** desde *Mi perfil*, con consentimiento (Ley 29733). Para volver a registrarlo, su jefatura o el admin lo restablecen desde *Empleados*, donde también pueden registrarlo en persona.
 - Se rechaza registrar un rostro que ya pertenece a otra cuenta y capturas que no son de la misma persona.
-- Cada marcación guarda el método (`facial`/`manual`) y la distancia obtenida.
+- Cada marcación guarda el método (`facial`, o `manual` con el botón) y la distancia obtenida.
 - En el panel admin → **Reconocimiento facial** se ve quién tiene rostro registrado y se puede **probar la marcación** (a quién reconoce y con qué distancia) y **probar un registro**, sin registrar asistencia ni guardar rostros. Sirve para calibrar `UMBRAL_FACIAL`.
 
 **Eventos**
@@ -269,12 +269,12 @@ Quién aprueba a quién se guarda en la tabla `reglas_aprobacion` y se puede cam
 ### Reconocimiento facial
 | Método | Ruta | Nota |
 |---|---|---|
-| GET | `/api/face/mi-estado` | `{registrado, muestras, registradoEl, consentimientoEl, obligatorio, muestrasRequeridas}` |
+| GET | `/api/face/mi-estado` | `{registrado, muestras, registradoEl, consentimientoEl, obligatorio, modo, muestrasRequeridas}`. `obligatorio` = su equipo marca con `FACIAL` |
 | POST | `/api/face/registrar` | `{descriptores: number[][], consentimiento: true}`. El propio colaborador, una sola vez |
 | POST | `/api/face/registrar/{empleadoId}` | Registro en persona por su jefatura o el admin |
 | DELETE | `/api/face/{empleadoId}` | Restablecer (jefatura o admin) |
 | GET | `/api/face/registrados` | Ids con rostro registrado (jefaturas y admin) |
-| GET | `/api/face/admin/resumen` | Solo admin: quiénes marcan y si tienen rostro |
+| GET | `/api/face/admin/resumen` | Solo admin: quiénes marcan, si tienen rostro y con qué modo (`modo`) |
 | POST | `/api/face/admin/probar-marcacion` | Solo admin: `{descriptor, empleadoId?}` → a quién reconoce y con qué distancia. **No registra asistencia** |
 | POST | `/api/face/admin/probar-registro` | Solo admin: `{descriptores}` → calidad de las capturas y si el rostro ya pertenece a alguien. **No guarda nada** |
 
@@ -288,7 +288,7 @@ La marcación (`POST /api/asistencia/registrar`) recibe además `descriptor: num
 | GET | `/api/saldos/empleado/{id}` | Para jefaturas, supervisores y admin |
 
 ### Panel admin (`/api/admin/**`, solo rol `admin`)
-`mi-ip` · `parametros` · `segmentos-red` · `feriados` · `departamentos` · `tipos-usuario` · `reglas-aprobacion` · `tipos-solicitud` · `motivos-licencia` · `usuarios` (rol, estado, restablecer contraseña) · `saldos` (listado, `carga-inicial`, `ajuste`, movimientos) · `feriados-laborados` (listado y revertir) · `vacaciones/procesar` · `asistencia/roles` (GET configuración por rol con empleados activos, PUT `/{id}` `{marcaAsistencia, conHorario}`). · `aprobacion-automatica` (GET reglas por departamento, PUT `/{departamentoId}` `{activo, cupoSemanal, maximoPorEmpleado, minimoEnTurno, antelacionHoras, alLlenarse, promoverEspera}`). `GET /api/empleados/roles` también devuelve `marcaAsistencia` y `conHorario`.
+`mi-ip` · `parametros` · `segmentos-red` · `feriados` · `departamentos` · `tipos-usuario` · `reglas-aprobacion` · `tipos-solicitud` · `motivos-licencia` · `usuarios` (rol, estado, restablecer contraseña) · `saldos` (listado, `carga-inicial`, `ajuste`, movimientos) · `feriados-laborados` (listado y revertir) · `vacaciones/procesar` · `asistencia/roles` (GET configuración por rol con empleados activos, PUT `/{id}` `{marcaAsistencia, conHorario}`). · `marcacion-equipos` (GET modo por departamento con colaboradores y rostros registrados, PUT `/{departamentoId}` `{modo: "FACIAL" | "BOTON"}`) · `aprobacion-automatica` (GET reglas por departamento, PUT `/{departamentoId}` `{activo, cupoSemanal, maximoPorEmpleado, minimoEnTurno, antelacionHoras, alLlenarse, promoverEspera}`). `GET /api/empleados/roles` también devuelve `marcaAsistencia` y `conHorario`.
 
 Los empleados se registran con `POST /api/empleados` (admin, gerencia y **supervisores**; el supervisor solo registra personal operativo: técnico, HD, NOC y BO). Se crea también su usuario: el DNI como usuario y la contraseña inicial `Soporte26$`, que debe cambiar en su primer ingreso. Solo el admin y la gerencia pueden indicar otro usuario u otra contraseña inicial.
 

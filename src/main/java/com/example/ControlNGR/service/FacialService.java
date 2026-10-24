@@ -1,6 +1,7 @@
 package com.example.ControlNGR.service;
 
 import com.example.ControlNGR.entity.Empleado;
+import com.example.ControlNGR.entity.MarcacionEquipo;
 import com.example.ControlNGR.entity.RostroEmpleado;
 import com.example.ControlNGR.entity.Usuario;
 import com.example.ControlNGR.repository.EmpleadoRepository;
@@ -45,13 +46,15 @@ public class FacialService {
     private final RostroEmpleadoRepository rostroRepository;
     private final EmpleadoRepository empleadoRepository;
     private final ParametroService parametroService;
+    private final ModoMarcacionService modoMarcacion;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public FacialService(RostroEmpleadoRepository rostroRepository, EmpleadoRepository empleadoRepository,
-                         ParametroService parametroService) {
+                         ParametroService parametroService, ModoMarcacionService modoMarcacion) {
         this.rostroRepository = rostroRepository;
         this.empleadoRepository = empleadoRepository;
         this.parametroService = parametroService;
+        this.modoMarcacion = modoMarcacion;
     }
 
     /** Resultado de verificar un rostro al marcar. */
@@ -60,10 +63,6 @@ public class FacialService {
     }
 
     // ------------------------------------------------------------------ estado
-
-    public boolean obligatorio() {
-        return parametroService.booleano(MARCACION_FACIAL_OBLIGATORIA, true);
-    }
 
     public double umbral() {
         return parametroService.decimal(UMBRAL_FACIAL, new BigDecimal("0.5")).doubleValue();
@@ -87,7 +86,10 @@ public class FacialService {
         r.put("registradoEl", muestras.stream().map(RostroEmpleado::getCreatedAt)
                 .min(Comparator.naturalOrder()).orElse(null));
         r.put("consentimientoEl", empleado.getConsentimientoFacialAt());
-        r.put("obligatorio", obligatorio());
+        // Lo decide el modo de su equipo: con FACIAL la marcacion exige la camara y el rostro registrado
+        String modo = modoMarcacion.modo(empleado);
+        r.put("modo", modo);
+        r.put("obligatorio", MarcacionEquipo.FACIAL.equals(modo));
         r.put("muestrasRequeridas", muestrasRequeridas());
         return r;
     }
@@ -167,16 +169,16 @@ public class FacialService {
     // ------------------------------------------------------------------ verificacion
 
     /**
-     * Verifica el rostro capturado al marcar. Si la marcacion facial no es obligatoria y el empleado no
-     * tiene rostro registrado, se permite marcar sin rostro (metodo "manual").
+     * Verifica el rostro capturado al marcar. Si el equipo del empleado marca con botón, se registra sin
+     * rostro (metodo "manual") aunque tenga rostro registrado; si marca con FACIAL, el rostro es obligatorio.
      */
     @Transactional(readOnly = true)
     public Verificacion verificar(Empleado empleado, double[] descriptor) {
+        if (!modoMarcacion.esFacial(empleado)) {
+            return Verificacion.manual();
+        }
         List<RostroEmpleado> muestras = rostroRepository.findByEmpleadoId(empleado.getId());
         if (muestras.isEmpty()) {
-            if (!obligatorio()) {
-                return Verificacion.manual();
-            }
             throw new RostroException("NO_REGISTRADO",
                     "Debe registrar su rostro en Mi perfil antes de marcar asistencia", 403);
         }
@@ -214,6 +216,7 @@ public class FacialService {
             fila.put("muestras", muestras.size());
             fila.put("registradoEl", muestras.stream().map(RostroEmpleado::getCreatedAt)
                     .min(Comparator.naturalOrder()).orElse(null));
+            fila.put("modo", modoMarcacion.modo(e));
             empleados.add(fila);
         }
         empleados.sort(Comparator.comparing(f -> String.valueOf(f.get("nombre"))));
@@ -221,7 +224,8 @@ public class FacialService {
         r.put("total", empleados.size());
         r.put("registrados", empleados.stream().filter(f -> Boolean.TRUE.equals(f.get("registrado"))).count());
         r.put("umbral", umbral());
-        r.put("obligatorio", obligatorio());
+        r.put("obligatorio", MarcacionEquipo.FACIAL.equals(modoMarcacion.modoPorDefecto()));
+        r.put("conFacial", empleados.stream().filter(f -> MarcacionEquipo.FACIAL.equals(f.get("modo"))).count());
         r.put("muestrasRequeridas", muestrasRequeridas());
         r.put("empleados", empleados);
         return r;

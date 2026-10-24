@@ -95,6 +95,7 @@ public class AsistenciaService {
             }
 
             LocalTime horaEntradaProgramada = obtenerEntradaProgramada(empleado, fecha);
+            validarAnticipacion(hora, horaEntradaProgramada, anticipacionMinutos());
             asistencia.setHoraEntrada(hora);
             asistencia.setIpEntrada(ipCliente);
             asistencia.setMetodoEntrada(verificacion.metodo());
@@ -173,6 +174,27 @@ public class AsistenciaService {
         return entrada;
     }
 
+    /**
+     * La entrada no se puede marcar antes de {@code minutos} del inicio del turno. Si la hora es posterior al
+     * inicio (tardanza o turno de otro dia) no se limita. Los roles sin horario no tienen inicio de turno.
+     */
+    static void validarAnticipacion(LocalTime hora, LocalTime entradaProgramada, int minutos) {
+        if (entradaProgramada == null) return;
+        long segundosAntes = java.time.Duration.between(hora, entradaProgramada).getSeconds();
+        if (segundosAntes > minutos * 60L) {
+            java.time.format.DateTimeFormatter hhmm = java.time.format.DateTimeFormatter.ofPattern("HH:mm");
+            throw new IllegalStateException("Aún no puede marcar su entrada: su turno empieza a las "
+                    + entradaProgramada.format(hhmm) + ". Podrá marcar desde las "
+                    + entradaProgramada.minusMinutes(minutos).format(hhmm)
+                    + (minutos > 0 ? " (" + minutos + " min antes)." : "."));
+        }
+    }
+
+    /** Minutos antes del turno desde los que se puede marcar entrada (editable en el panel admin, 5 por defecto). */
+    private int anticipacionMinutos() {
+        return Math.max(0, parametroService.entero(ParametroService.ANTICIPACION_ENTRADA_MINUTOS, 5));
+    }
+
     /** Minutos de tolerancia antes de considerar tardanza (editable en el panel admin, 10 por defecto). */
     private int toleranciaMinutos() {
         return Math.max(0, parametroService.entero(ParametroService.TOLERANCIA_TARDANZA_MINUTOS, 10));
@@ -187,6 +209,7 @@ public class AsistenciaService {
         m.put("marcaAsistencia", Boolean.TRUE.equals(tipo.getMarcaAsistencia()));
         m.put("conHorario", tipo.tieneHorario());
         m.put("toleranciaMinutos", toleranciaMinutos());
+        m.put("anticipacionMinutos", anticipacionMinutos());
         m.put("horasSalidaAutomatica", horasSalidaAutomatica());
         return m;
     }

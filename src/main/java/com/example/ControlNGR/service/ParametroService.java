@@ -18,6 +18,7 @@ public class ParametroService {
     public static final String VACACIONES_ABONO_DESDE = "VACACIONES_ABONO_DESDE";
     public static final String VALIDAR_IP_MARCACION = "VALIDAR_IP_MARCACION";
     public static final String TOLERANCIA_TARDANZA_MINUTOS = "TOLERANCIA_TARDANZA_MINUTOS";
+    public static final String ANTICIPACION_ENTRADA_MINUTOS = "ANTICIPACION_ENTRADA_MINUTOS";
     public static final String EVIDENCIA_MAX_MB = "EVIDENCIA_MAX_MB";
     public static final String SALIDA_AUTOMATICA_HORAS = "SALIDA_AUTOMATICA_HORAS";
 
@@ -102,6 +103,12 @@ public class ParametroService {
             BigDecimal minutos = new BigDecimal(valor);
             if (minutos.stripTrailingZeros().scale() > 0 || minutos.compareTo(BigDecimal.valueOf(120)) > 0) {
                 throw new IllegalArgumentException("La tolerancia debe ser un número entero de minutos entre 0 y 120");
+            }
+        }
+        if (ANTICIPACION_ENTRADA_MINUTOS.equals(clave)) {
+            BigDecimal minutos = new BigDecimal(valor);
+            if (minutos.stripTrailingZeros().scale() > 0 || minutos.signum() < 0 || minutos.compareTo(BigDecimal.valueOf(720)) > 0) {
+                throw new IllegalArgumentException("La anticipación debe ser un número entero de minutos entre 0 y 720");
             }
         }
         p.setValor(valor);

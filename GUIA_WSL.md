@@ -112,9 +112,22 @@ sh scripts/restaurar.sh respaldos/NOMBRE_DEL_RESPALDO.zip
 ## 6. Comprobar
 
 1. Desde otra PC abra `https://10.92.104.14` → entre como admin → **Segmentos de red**. Debe mostrar **la IP real de esa PC** y *Dentro de red*.
-2. Si antes desactivó `VALIDAR_IP_MARCACION`, vuelva a ponerlo en **true** en *Parámetros*.
+2. Si antes desactivó *Validar red al marcar asistencia*, vuelva a activarlo en **Segmentos de red**.
 3. Con un colaborador: *Inicio* → *Marcar entrada* debe estar habilitado dentro de la red o la VPN.
 4. **Reinicio:** reinicie Windows, inicie sesión y espere 1 a 2 minutos. El sistema debe volver solo: la tarea *Control NGR - WSL* mantiene Ubuntu encendido y Docker arranca los contenedores.
+
+## 7. Arranque sin iniciar sesión y acceso remoto por SSH (recomendado)
+
+Así el sistema vuelve solo tras un reinicio (por ejemplo, una actualización de Windows) aunque nadie inicie sesión, y se puede actualizar desde otra PC de la red o la VPN. En **PowerShell como administrador**, con el mismo usuario de Windows, desde la carpeta del sistema en Windows (`D:\Control_NGR\ControlNGR_Backend-v2`, o tras un `git pull`):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\wsl\4-acceso-remoto.ps1
+```
+
+- Instala el servidor SSH en Ubuntu, abre el puerto 22 en el firewall de Windows y en el de WSL, y cambia la tarea *Control NGR - WSL* para que corra **al encender el equipo** (pide una vez la contraseña de Windows de ese usuario; si la contraseña cambia, vuelva a ejecutar el script).
+- Con `-EscritorioRemoto` también activa el Escritorio remoto de Windows.
+- Desde otra PC: `Test-NetConnection 10.92.104.14 -Port 22` debe dar `True`; luego `ssh USUARIO_DE_UBUNTU@10.92.104.14` y los comandos de *Uso diario*.
+- Compruébelo reiniciando Windows **sin** iniciar sesión: en 2 a 3 minutos la web y el SSH deben responder.
 
 ## Uso diario (en Ubuntu)
 
@@ -130,7 +143,7 @@ sh scripts/restaurar.sh respaldos/NOMBRE_DEL_RESPALDO.zip
 - **Git sin volver a escribir credenciales**: use las de Windows ejecutando una vez en Ubuntu:
   `git config --global credential.helper "/mnt/c/Program\ Files/Git/mingw64/bin/git-credential-manager.exe"`
 - **Power BI / Workbench**: MySQL sigue en `127.0.0.1:3307` desde el propio servidor. La red *mirrored* comparte `localhost` entre Windows y Ubuntu.
-- **Equipo encendido:** el equipo debe quedar encendido y con la sesión de Windows iniciada, igual que con Docker Desktop.
+- **Equipo encendido:** el equipo debe quedar encendido. Con el paso 7 no hace falta dejar la sesión de Windows iniciada; sin él, sí.
 
 ## Volver atrás (Docker Desktop)
 

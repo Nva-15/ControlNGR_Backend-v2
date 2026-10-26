@@ -129,6 +129,28 @@ powershell -ExecutionPolicy Bypass -File .\scripts\wsl\4-acceso-remoto.ps1
 - Desde otra PC: `Test-NetConnection 10.92.104.14 -Port 22` debe dar `True`; luego `ssh USUARIO_DE_UBUNTU@10.92.104.14` y los comandos de *Uso diario*.
 - Compruébelo reiniciando Windows **sin** iniciar sesión: en 2 a 3 minutos la web y el SSH deben responder.
 
+**Sin nadie frente al equipo** (desde otra PC con permisos de administrador en el servidor: `Test-Path \\SERVIDOR\admin$` da `True` y el puerto 135 responde). En PowerShell de la otra PC:
+
+```powershell
+# 1. Usuario de Windows que ejecuta Ubuntu en el servidor (línea "Ejecutar como usuario" / "Run As User")
+schtasks /query /s SERVIDOR /tn "Control NGR - WSL" /v /fo list
+
+# 2. Copiar el script a la carpeta del sistema en el servidor
+Copy-Item .\scripts\wsl\4-acceso-remoto.ps1 \\SERVIDOR\d\Control_NGR\ControlNGR_Backend-v2\scripts\wsl\ -Force
+
+# 3. Ejecutarlo una vez como ese usuario (/rp * pide su contraseña sin mostrarla) y leer el registro
+schtasks /create /s SERVIDOR /tn "Control NGR - Acceso remoto" /ru "DOMINIO\usuario" /rp * /rl HIGHEST /sc once /st 23:59 /f /tr "powershell.exe -NoProfile -ExecutionPolicy Bypass -File D:\Control_NGR\ControlNGR_Backend-v2\scripts\wsl\4-acceso-remoto.ps1 -Desatendido"
+schtasks /run /s SERVIDOR /tn "Control NGR - Acceso remoto"
+Get-Content \\SERVIDOR\d\Control_NGR\ControlNGR_Backend-v2\scripts\wsl\4-acceso-remoto.log   # a los 2-3 minutos
+
+# 4. Arranque al encender (tarea nueva: no detiene la que ya está corriendo)
+schtasks /create /s SERVIDOR /tn "Control NGR - WSL al encender" /ru "DOMINIO\usuario" /rp * /sc onstart /f /tr "powershell.exe -NoProfile -WindowStyle Hidden -Command wsl.exe -d Ubuntu-24.04 --exec sleep infinity"
+
+# 5. Limpiar la tarea de un solo uso
+schtasks /delete /s SERVIDOR /tn "Control NGR - Acceso remoto" /f
+```
+
+
 ## Uso diario (en Ubuntu)
 
 | Para… | Comando |

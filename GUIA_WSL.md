@@ -151,6 +151,25 @@ schtasks /delete /s SERVIDOR /tn "Control NGR - Acceso remoto" /f
 ```
 
 
+## 8. Actualizar desde su PC (sin entrar al servidor)
+
+Con el paso 7 hecho, desde su PC con Windows, en PowerShell normal y dentro de su copia de `ControlNGR_Backend-v2`:
+
+```powershell
+git pull                                                                          # trae la versión nueva del script
+powershell -ExecutionPolicy Bypass -File .\scripts\remoto\planta.ps1 -CrearAccesosDirectos  # una vez: iconos en el escritorio
+```
+
+| Icono / comando | Hace |
+|---|---|
+| **Control NGR - Actualizar planta** (o `planta.ps1`) | `git pull` del frontend y del backend en el servidor y `iniciar.sh --construir`. Pide confirmar porque el sistema deja de responder 1 a 2 minutos |
+| **Control NGR - Consola planta** (`-Conectar`) | Abre la consola de Ubuntu del servidor en la carpeta del sistema |
+| **Control NGR - Estado planta** (`-Estado`) | `docker compose ps` y las últimas líneas del backend |
+
+- La primera vez crea en su PC la clave `%USERPROFILE%\.ssh\controlngr_ed25519`, la instala en el servidor y pide **una sola vez** la contraseña de Ubuntu. Después se conecta sin contraseña. Esa clave da acceso al servidor: no la copie ni la suba a git.
+- Otro servidor o usuario: `-Servidor 10.x.x.x -Usuario otro`.
+- Quitar el acceso de una PC: en el servidor, borre su línea (termina en `controlngr-NOMBRE_PC`) de `~/.ssh/authorized_keys`.
+
 ## Uso diario (en Ubuntu)
 
 | Para… | Comando |

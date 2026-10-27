@@ -21,6 +21,8 @@ public class ParametroService {
     public static final String ANTICIPACION_ENTRADA_MINUTOS = "ANTICIPACION_ENTRADA_MINUTOS";
     public static final String EVIDENCIA_MAX_MB = "EVIDENCIA_MAX_MB";
     public static final String SALIDA_AUTOMATICA_HORAS = "SALIDA_AUTOMATICA_HORAS";
+    public static final String JORNADA_MANANA_HORAS = "JORNADA_MANANA_HORAS";
+    public static final String JORNADA_TARDE_HORAS = "JORNADA_TARDE_HORAS";
 
     private final ParametroSistemaRepository repository;
 
@@ -97,6 +99,14 @@ public class ParametroService {
             BigDecimal horas = new BigDecimal(valor);
             if (horas.stripTrailingZeros().scale() > 0 || horas.compareTo(BigDecimal.ONE) < 0 || horas.compareTo(BigDecimal.valueOf(23)) > 0) {
                 throw new IllegalArgumentException("La salida automática debe ser un número entero de horas entre 1 y 23");
+            }
+        }
+        if (JORNADA_MANANA_HORAS.equals(clave) || JORNADA_TARDE_HORAS.equals(clave)) {
+            BigDecimal horas = new BigDecimal(valor);
+            // Se admiten cuartos de hora (8.5 = 8 h 30 min)
+            if (horas.multiply(BigDecimal.valueOf(4)).stripTrailingZeros().scale() > 0
+                    || horas.compareTo(BigDecimal.ONE) < 0 || horas.compareTo(BigDecimal.valueOf(16)) > 0) {
+                throw new IllegalArgumentException("La jornada debe estar entre 1 y 16 horas (en cuartos de hora: 8, 8.25, 8.5...)");
             }
         }
         if (TOLERANCIA_TARDANZA_MINUTOS.equals(clave)) {

@@ -3,7 +3,9 @@ package com.example.ControlNGR.controller;
 import com.example.ControlNGR.dto.DetalleHorarioDiaDTO;
 import com.example.ControlNGR.dto.HorarioSemanalRequestDTO;
 import com.example.ControlNGR.dto.HorarioSemanalResponseDTO;
+import com.example.ControlNGR.dto.TurnoSemanaDTO;
 import com.example.ControlNGR.service.HorarioSemanalService;
+import com.example.ControlNGR.service.HorarioService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +29,9 @@ public class HorarioSemanalController {
 
     @Autowired
     private HorarioSemanalService horarioSemanalService;
+
+    @Autowired
+    private HorarioService horarioService;
 
     // ==================== TEST ====================
 
@@ -194,6 +199,24 @@ public class HorarioSemanalController {
         try {
             HorarioSemanalResponseDTO response = horarioSemanalService.actualizarDetalle(detalleId, request);
             return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Semana completa de un colaborador en un paso
+     * PUT /api/horarios-semanales/{id}/empleado/{empleadoId}
+     * Body: { turno, horaEntrada, horaSalida, horaAlmuerzoInicio, horaAlmuerzoFin,
+     *         dias: { "2026-10-26": "normal" | "descanso", ... }, guardarComoBase }
+     */
+    @PutMapping("/{id}/empleado/{empleadoId}")
+    public ResponseEntity<?> guardarSemanaEmpleado(
+            @PathVariable("id") Integer id,
+            @PathVariable("empleadoId") Integer empleadoId,
+            @RequestBody TurnoSemanaDTO turno) {
+        try {
+            return ResponseEntity.ok(horarioService.guardarSemanaEmpleado(id, empleadoId, turno));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

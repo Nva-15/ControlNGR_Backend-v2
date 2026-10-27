@@ -160,7 +160,8 @@ public class AsistenciaService {
             entrada = semanal.get().getHoraEntrada();
         } else {
             Optional<Horario> base = horarioRepository.findByEmpleadoIdAndDiaSemana(
-                    empleado.getId(), traducirDia(fecha.getDayOfWeek().toString().toLowerCase()));
+                    empleado.getId(), traducirDia(fecha.getDayOfWeek().toString().toLowerCase()))
+                    .filter(h -> h.vigenteEn(fecha));
             tipoDia = base.map(Horario::getTipoDia).orElse(null);
             entrada = base.map(Horario::getHoraEntrada).orElse(null);
         }
@@ -350,10 +351,18 @@ public class AsistenciaService {
         }
 
         for (Empleado empleado : empleados.values()) {
-            // Iterar cada dia del rango, sin contar los dias anteriores a su ingreso (no son faltas)
-            LocalDate fecha = empleado.getIngreso() != null && empleado.getIngreso().isAfter(fechaInicio)
-                    ? empleado.getIngreso() : fechaInicio;
+            // Iterar cada dia del rango. Antes de su ingreso solo se listan los dias que marco (sin marcacion
+            // no son faltas): asi una fecha de ingreso mal registrada no oculta sus marcaciones
+            LocalDate ingreso = empleado.getIngreso();
+            LocalDate fecha = fechaInicio;
             while (!fecha.isAfter(fechaFin)) {
+                if (ingreso != null && fecha.isBefore(ingreso)) {
+                    Asistencia previa = asistenciaPorDia.get(empleado.getId() + "|" + fecha);
+                    if (previa == null || previa.getHoraEntrada() == null) {
+                        fecha = fecha.plusDays(1);
+                        continue;
+                    }
+                }
                 String diaSemanaIngles = fecha.getDayOfWeek().toString().toLowerCase();
                 String diaSemanaEsp = traducirDia(diaSemanaIngles);
 
@@ -377,7 +386,9 @@ public class AsistenciaService {
                     tieneHorario = true;
                 } else {
                     // Sin horario semanal activo: se usa el horario base (igual que al marcar)
-                    Optional<Horario> base = horarioRepository.findByEmpleadoIdAndDiaSemana(empleado.getId(), diaSemanaEsp);
+                    final LocalDate dia = fecha;
+                    Optional<Horario> base = horarioRepository.findByEmpleadoIdAndDiaSemana(empleado.getId(), diaSemanaEsp)
+                            .filter(h -> h.vigenteEn(dia));
                     if (base.isPresent()) {
                         horaEntradaProgramada = base.get().getHoraEntrada();
                         horaSalidaProgramada = base.get().getHoraSalida();

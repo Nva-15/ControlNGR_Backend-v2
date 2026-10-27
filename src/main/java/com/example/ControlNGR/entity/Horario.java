@@ -40,6 +40,24 @@ public class Horario {
     @Column(name = "funciones", length = 100)
     private String funciones;
 
+    /** Desde qué fecha programa los días; null = siempre. */
+    @Column(name = "vigente_desde")
+    private java.time.LocalDate vigenteDesde;
+
+    public java.time.LocalDate getVigenteDesde() { return vigenteDesde; }
+    public void setVigenteDesde(java.time.LocalDate vigenteDesde) { this.vigenteDesde = vigenteDesde; }
+
+    /** Un horario base nuevo programa desde el día en que se registra (no genera faltas hacia atrás). */
+    @PrePersist
+    void alCrear() {
+        if (vigenteDesde == null) vigenteDesde = java.time.LocalDate.now();
+    }
+
+    /** Si este horario base programa la fecha indicada (ya está vigente). */
+    public boolean vigenteEn(java.time.LocalDate fecha) {
+        return vigenteDesde == null || fecha == null || !fecha.isBefore(vigenteDesde);
+    }
+
     public String getFunciones() { return funciones; }
     public void setFunciones(String funciones) { this.funciones = funciones; }
 

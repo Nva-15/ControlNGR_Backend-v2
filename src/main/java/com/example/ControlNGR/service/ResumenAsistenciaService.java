@@ -120,6 +120,26 @@ public class ResumenAsistenciaService {
         return recalcularDesde(desde);
     }
 
+    private volatile long hoyCalculadoEn;
+
+    /**
+     * Para la vista "Hoy en vivo": recalcula el día de hoy si el último cálculo tiene más de un minuto.
+     * Si otro cálculo está en curso no espera: se usa lo último calculado.
+     */
+    public void refrescarHoy() {
+        long ahora = System.currentTimeMillis();
+        if (ahora - hoyCalculadoEn < 60_000 || !calculando.tryLock()) return;
+        try {
+            hoyCalculadoEn = ahora;
+            LocalDate hoy = LocalDate.now();
+            recalcular(hoy, hoy);
+        } catch (Exception e) {
+            logger.error("Error al actualizar la asistencia de hoy: {}", e.getMessage(), e);
+        } finally {
+            calculando.unlock();
+        }
+    }
+
     public int recalcularDesde(LocalDate desde) {
         LocalDate hoy = LocalDate.now();
         if (desde == null || desde.isAfter(hoy)) return 0;
@@ -198,10 +218,14 @@ public class ResumenAsistenciaService {
                 if (ultima == null) continue;
                 if (ultima.isBefore(fin)) fin = ultima;
             }
-            LocalDate inicio = e.getIngreso() != null && e.getIngreso().isAfter(desde) ? e.getIngreso() : desde;
-            for (LocalDate f = inicio; !f.isAfter(fin); f = f.plusDays(1)) {
+            LocalDate ingreso = e.getIngreso();
+            for (LocalDate f = desde; !f.isAfter(fin); f = f.plusDays(1)) {
+                Asistencia a = asistencias.get(e.getId() + "|" + f);
+                // Antes de su ingreso solo cuentan los días que marcó (una fecha de ingreso mal registrada
+                // no oculta sus marcaciones, y los días sin marcar no son faltas)
+                if (ingreso != null && f.isBefore(ingreso) && (a == null || a.getHoraEntrada() == null)) continue;
                 Programado p = programado(e, f, semanal, base);
-                Dia dia = clasificar(e, f, p, asistencias.get(e.getId() + "|" + f), tolerancia, ahora);
+                Dia dia = clasificar(e, f, p, a, tolerancia, ahora);
                 if (dia != null) resultado.add(dia);
             }
         }
@@ -214,7 +238,7 @@ public class ResumenAsistenciaService {
         HorarioSemanalDetalle d = semanal.get(e.getId() + "|" + fecha);
         if (d != null) return new Programado(d.getTipoDia(), d.getTurno(), d.getFunciones(), d.getHoraEntrada(), d.getHoraSalida());
         Horario h = base.get(e.getId() + "|" + diaSemana(fecha));
-        if (h != null) return new Programado(h.getTipoDia(), h.getTurno(), h.getFunciones(), h.getHoraEntrada(), h.getHoraSalida());
+        if (h != null && h.vigenteEn(fecha)) return new Programado(h.getTipoDia(), h.getTurno(), h.getFunciones(), h.getHoraEntrada(), h.getHoraSalida());
         return null;
     }
 

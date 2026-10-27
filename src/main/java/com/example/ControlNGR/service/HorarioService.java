@@ -17,6 +17,8 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Comparator;
+import java.util.Objects;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Map;
@@ -390,7 +392,8 @@ public class HorarioService {
 
     /**
      * Guarda el horario base de la persona (claves lunes ... domingo), cada día con su turno o de descanso.
-     * Completa sus días pendientes en las semanas ya creadas. Máximo un día de descanso.
+     * Completa sus días pendientes en las semanas ya creadas. Máximo un día de descanso. Programa los días
+     * desde su fecha de vigencia (los anteriores no cuentan como faltas).
      */
     @Transactional
     public List<HorarioResponseDTO> guardarHorarioBase(Integer empleadoId, TurnoSemanaDTO turnos) {
@@ -398,6 +401,10 @@ public class HorarioService {
         Empleado empleado = empleadoRepository.findById(empleadoId)
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado con ID: " + empleadoId));
         validarTieneHorario(empleado);
+        // Un solo "vigente desde" para toda la semana base: el indicado, el que ya tenía o, si es nuevo, hoy
+        LocalDate vigencia = turnos.vigenteDesde() != null ? turnos.vigenteDesde()
+                : horarioRepository.findByEmpleadoId(empleadoId).stream().map(Horario::getVigenteDesde)
+                        .filter(Objects::nonNull).min(Comparator.naturalOrder()).orElse(LocalDate.now());
         List<HorarioResponseDTO> guardados = new ArrayList<>();
         for (TurnoSemanaDTO.Dia dia : turnos.dias()) {
             String diaSemana = dia.clave().toLowerCase();
@@ -408,6 +415,7 @@ public class HorarioService {
             Horario horario = horarioRepository.findByEmpleadoAndDiaSemana(empleado, diaSemana).orElse(new Horario());
             horario.setEmpleado(empleado);
             horario.setDiaSemana(diaSemana);
+            horario.setVigenteDesde(vigencia);
             horario.setTipoDia(dia.tipoDia());
             if (dia.esLaboral()) {
                 horario.setTurno(dia.turnoNormalizado());

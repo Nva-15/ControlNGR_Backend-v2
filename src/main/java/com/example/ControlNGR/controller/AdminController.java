@@ -29,10 +29,12 @@ public class AdminController {
     private final UsuarioActual usuarioActual;
     private final RedService redService;
     private final FuncionTurnoService funcionTurnoService;
+    private final ResumenAsistenciaService resumenAsistenciaService;
 
     public AdminController(AdminService adminService, ParametroService parametroService, SaldoService saldoService,
                            FeriadoLaboradoService feriadoLaboradoService, VacacionesService vacacionesService,
-                           UsuarioActual usuarioActual, RedService redService, FuncionTurnoService funcionTurnoService) {
+                           UsuarioActual usuarioActual, RedService redService, FuncionTurnoService funcionTurnoService,
+                           ResumenAsistenciaService resumenAsistenciaService) {
         this.adminService = adminService;
         this.parametroService = parametroService;
         this.saldoService = saldoService;
@@ -41,6 +43,7 @@ public class AdminController {
         this.usuarioActual = usuarioActual;
         this.redService = redService;
         this.funcionTurnoService = funcionTurnoService;
+        this.resumenAsistenciaService = resumenAsistenciaService;
     }
 
     // ---------- Parametros ----------
@@ -195,6 +198,23 @@ public class AdminController {
     @PutMapping("/motivos-licencia/{id}")
     public ResponseEntity<?> actualizarMotivo(@PathVariable("id") Integer id, @RequestBody Map<String, Object> body) {
         return ResponseEntity.ok(adminService.guardarMotivoLicencia(id, body));
+    }
+
+    /**
+     * Vuelve a calcular el resumen de asistencia (dashboard y récords) desde una fecha, en segundo plano.
+     * Útil si se corrigieron horarios o marcaciones antiguas; lo reciente se actualiza solo.
+     */
+    @PostMapping("/reportes/recalcular")
+    public ResponseEntity<?> recalcularResumen(@RequestBody(required = false) Map<String, Object> body) {
+        Object desde = body == null ? null : body.get("desde");
+        LocalDate inicio = desde == null || desde.toString().isBlank() ? null : LocalDate.parse(desde.toString());
+        Thread hilo = new Thread(() -> {
+            if (inicio == null) resumenAsistenciaService.recalcularHistorial(); else resumenAsistenciaService.recalcularDesde(inicio);
+        }, "resumen-asistencia-manual");
+        hilo.setDaemon(true);
+        hilo.start();
+        return ResponseEntity.accepted().body(Map.of("mensaje", "Recalculando el resumen de asistencia"
+                + (inicio == null ? " de todo el historial" : " desde " + inicio) + ". Puede tardar unos minutos."));
     }
 
     @GetMapping("/funciones-turno")

@@ -25,6 +25,8 @@ public class ParametroService {
     public static final String JORNADA_TARDE_HORAS = "JORNADA_TARDE_HORAS";
     public static final String ENTRADA_MANANA_SUGERIDA = "ENTRADA_MANANA_SUGERIDA";
     public static final String ENTRADA_TARDE_SUGERIDA = "ENTRADA_TARDE_SUGERIDA";
+    public static final String MI_RECORD_HABILITADO = "MI_RECORD_HABILITADO";
+    public static final String MI_RECORD_DESDE = "MI_RECORD_DESDE";
 
     private final ParametroSistemaRepository repository;
 
@@ -108,7 +110,17 @@ public class ParametroService {
                 throw new IllegalArgumentException("La salida automática debe ser un número entero de horas entre 1 y 23");
             }
         }
-        if (JORNADA_MANANA_HORAS.equals(clave) || JORNADA_TARDE_HORAS.equals(clave)) {
+        if (MI_RECORD_DESDE.equals(clave) && !"INGRESO".equalsIgnoreCase(valor)) {
+            try {
+                LocalDate.parse(valor);
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Indique INGRESO (desde su fecha de ingreso) o una fecha AAAA-MM-DD");
+            }
+            valor = valor.trim();
+        } else if (MI_RECORD_DESDE.equals(clave)) {
+            valor = "INGRESO";
+        }
+                if (JORNADA_MANANA_HORAS.equals(clave) || JORNADA_TARDE_HORAS.equals(clave)) {
             BigDecimal horas = new BigDecimal(valor);
             // Se admiten cuartos de hora (8.5 = 8 h 30 min)
             if (horas.multiply(BigDecimal.valueOf(4)).stripTrailingZeros().scale() > 0

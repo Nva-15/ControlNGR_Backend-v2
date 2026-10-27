@@ -30,6 +30,11 @@ public interface HorarioSemanalDetalleRepository extends JpaRepository<HorarioSe
             @Param("empleadoId") Integer empleadoId,
             @Param("fecha") LocalDate fecha);
 
+    /** Días de semanas publicadas (activas o históricas, no borradores) en un rango: resumen de asistencia. */
+    @Query("SELECT d FROM HorarioSemanalDetalle d WHERE d.fecha BETWEEN :desde AND :hasta " +
+           "AND d.horarioSemanal.estado IN ('activo', 'historico')")
+    List<HorarioSemanalDetalle> findPublicadosEntre(@Param("desde") LocalDate desde, @Param("hasta") LocalDate hasta);
+
     // Buscar horario activo de empleado en fecha específica
     @Query("SELECT d FROM HorarioSemanalDetalle d " +
            "WHERE d.empleado.id = :empleadoId AND d.fecha = :fecha " +

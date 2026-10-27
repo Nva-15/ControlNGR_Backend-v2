@@ -31,13 +31,15 @@ public class AdminService {
     private final SaldoService saldoService;
     private final UsuarioService usuarioService;
     private final UsuarioActual usuarioActual;
+    private final HorarioSemanalService horarioSemanalService;
 
     public AdminService(SegmentoRedRepository segmentoRepository, DiaFeriadoRepository feriadoRepository,
                         DepartamentoRepository departamentoRepository, TipoUsuarioRepository tipoUsuarioRepository,
                         ReglaAprobacionRepository reglaRepository, TipoSolicitudRepository tipoSolicitudRepository,
                         MotivoLicenciaRepository motivoLicenciaRepository, UsuarioRepository usuarioRepository,
                         EmpleadoRepository empleadoRepository, SaldoService saldoService,
-                        UsuarioService usuarioService, UsuarioActual usuarioActual) {
+                        UsuarioService usuarioService, UsuarioActual usuarioActual,
+                        HorarioSemanalService horarioSemanalService) {
         this.segmentoRepository = segmentoRepository;
         this.feriadoRepository = feriadoRepository;
         this.departamentoRepository = departamentoRepository;
@@ -50,6 +52,7 @@ public class AdminService {
         this.saldoService = saldoService;
         this.usuarioService = usuarioService;
         this.usuarioActual = usuarioActual;
+        this.horarioSemanalService = horarioSemanalService;
     }
 
     // ==================== ASISTENCIA Y HORARIOS POR ROL ====================
@@ -89,6 +92,10 @@ public class AdminService {
         }
         aplicarAsistencia(t, marcaAsistencia, conHorario);
         tipoUsuarioRepository.save(t);
+        if (t.tieneHorario()) {
+            // El personal de un rol que pasa a tener horario entra a la semana vigente y las futuras
+            horarioSemanalService.incorporarFaltantes();
+        }
         return rolesAsistencia();
     }
 

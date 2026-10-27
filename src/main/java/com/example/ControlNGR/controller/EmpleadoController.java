@@ -49,6 +49,15 @@ public class EmpleadoController {
         this.tipoUsuarioRepository = tipoUsuarioRepository;
     }
 
+    /** Cargo, nivel y rol más comunes de cada departamento, para proponerlos al registrar a alguien nuevo. */
+    @GetMapping("/perfiles-departamento")
+    public ResponseEntity<?> perfilesDepartamento() {
+        if (!Roles.puedeCrearEmpleados(usuarioActual.requerido().getRol())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No puede registrar empleados"));
+        }
+        return ResponseEntity.ok(empleadoService.perfilesPorDepartamento());
+    }
+
     /** Departamentos activos (para formularios y filtros). */
     @GetMapping("/departamentos")
     public ResponseEntity<?> departamentos() {
@@ -187,8 +196,10 @@ public class EmpleadoController {
         }
         try {
             // En su propio registro solo se cambian datos personales (no rol, estado, ingreso ni cargo)
+            // El rol lo cambia quien administra a la persona y puede asignar el nuevo (validado arriba):
+            // admin, gerencia o el supervisor entre técnico, HD, NOC y BO
             return ResponseEntity.ok(empleadoService.actualizarEmpleado(id, datos,
-                    !propio && puedeGestionarAcceso(editor), propio));
+                    !propio && puedeGestionarAcceso(editor), !propio, propio));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }

@@ -295,11 +295,12 @@ public class EmpleadoService {
 
     /**
      * Actualiza un empleado existente.
-     * @param puedeGestionarAcceso true si el editor puede cambiar rol/contraseña/usuario (admin o gerencia)
+     * @param puedeGestionarAcceso true si el editor puede cambiar contraseña y usuario (admin o gerencia)
+     * @param puedeCambiarRol true si el editor puede cambiar el rol (el controlador ya validó que puede asignar el nuevo)
      * @param soloDatosPersonales true cuando el empleado edita su propio registro
      */
     public Empleado actualizarEmpleado(Integer id, EmpleadoRequestDTO datos, boolean puedeGestionarAcceso,
-                                       boolean soloDatosPersonales) {
+                                       boolean puedeCambiarRol, boolean soloDatosPersonales) {
         Empleado empleado = empleadoRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado"));
         if (soloDatosPersonales) {
@@ -311,6 +312,7 @@ public class EmpleadoService {
             datos.setActivo(null);
             datos.setUsuarioActivo(null);
             puedeGestionarAcceso = false;
+            puedeCambiarRol = false;
         }
 
         if (datos.getNombre() != null && !datos.getNombre().trim().isEmpty()) {
@@ -365,11 +367,11 @@ public class EmpleadoService {
             if (!Boolean.TRUE.equals(empleado.getActivo())) {
                 usuario.setActivo(false);
             }
+            if (puedeCambiarRol && datos.getRol() != null && !datos.getRol().trim().isEmpty()
+                    && !datos.getRol().trim().equalsIgnoreCase(usuario.getRol())) {
+                usuario.setTipoUsuario(usuarioService.tipoPersonal(datos.getRol()));
+            }
             if (puedeGestionarAcceso) {
-                if (datos.getRol() != null && !datos.getRol().trim().isEmpty()
-                        && !datos.getRol().trim().equalsIgnoreCase(usuario.getRol())) {
-                    usuario.setTipoUsuario(usuarioService.tipoPersonal(datos.getRol()));
-                }
                 if (datos.getUsername() != null && !datos.getUsername().trim().isEmpty()
                         && !datos.getUsername().trim().equals(usuario.getUsername())) {
                     if (usuarioRepository.existsByUsername(datos.getUsername().trim())) {
@@ -391,6 +393,41 @@ public class EmpleadoService {
     }
 
     /** Crea un empleado nuevo junto con su usuario de acceso (usuario y contraseña inicial: DNI). */
+    /**
+     * Por departamento, el cargo, nivel y rol más comunes de su personal activo, para proponerlos al registrar
+     * a alguien nuevo (NOC → "Operador NOC", nivel NOC, rol NOC). Se basa en el personal operativo y los
+     * asistentes; si el equipo solo tiene jefaturas, en todos.
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> perfilesPorDepartamento() {
+        Map<Integer, List<Empleado>> porDepartamento = new java.util.TreeMap<>();
+        for (Empleado e : empleadoRepository.findByActivo(true)) {
+            if (e.getDepartamento() != null) porDepartamento.computeIfAbsent(e.getDepartamento().getId(), k -> new java.util.ArrayList<>()).add(e);
+        }
+        List<Map<String, Object>> perfiles = new java.util.ArrayList<>();
+        porDepartamento.forEach((depto, lista) -> {
+            List<Empleado> base = lista.stream()
+                    .filter(e -> e.getRol() != null && (Roles.OPERATIVOS.contains(e.getRol().toLowerCase()) || Roles.ASISTENTE.equalsIgnoreCase(e.getRol())))
+                    .toList();
+            if (base.isEmpty()) base = lista;
+            Map<String, Object> p = new java.util.LinkedHashMap<>();
+            p.put("departamentoId", depto);
+            p.put("cargo", masComun(base.stream().map(Empleado::getCargo).toList()));
+            p.put("nivel", masComun(base.stream().map(Empleado::getNivel).toList()));
+            p.put("rol", masComun(base.stream().map(e -> e.getRol() == null ? null : e.getRol().toLowerCase()).toList()));
+            perfiles.add(p);
+        });
+        return perfiles;
+    }
+
+    /** Valor más frecuente (sin vacíos); a igual frecuencia, el primero en orden alfabético. */
+    static String masComun(List<String> valores) {
+        Map<String, Long> conteo = valores.stream().filter(v -> v != null && !v.isBlank()).map(String::trim)
+                .collect(Collectors.groupingBy(v -> v, java.util.TreeMap::new, Collectors.counting()));
+        return conteo.entrySet().stream().max(Map.Entry.<String, Long>comparingByValue()
+                .thenComparing(Map.Entry.comparingByKey(java.util.Comparator.reverseOrder()))).map(Map.Entry::getKey).orElse(null);
+    }
+
     public Empleado crearEmpleado(EmpleadoRequestDTO datos) {
         if (datos.getDni() == null || datos.getDni().trim().isEmpty()) {
             throw new RuntimeException("El DNI es requerido");

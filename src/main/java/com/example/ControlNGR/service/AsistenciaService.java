@@ -211,6 +211,7 @@ public class AsistenciaService {
         m.put("toleranciaMinutos", toleranciaMinutos());
         m.put("anticipacionMinutos", anticipacionMinutos());
         m.put("horasSalidaAutomatica", horasSalidaAutomatica());
+        m.put("miRecordHabilitado", parametroService.booleano(ParametroService.MI_RECORD_HABILITADO, false));
         return m;
     }
 
@@ -349,8 +350,9 @@ public class AsistenciaService {
         }
 
         for (Empleado empleado : empleados.values()) {
-            // Iterar cada dia del rango
-            LocalDate fecha = fechaInicio;
+            // Iterar cada dia del rango, sin contar los dias anteriores a su ingreso (no son faltas)
+            LocalDate fecha = empleado.getIngreso() != null && empleado.getIngreso().isAfter(fechaInicio)
+                    ? empleado.getIngreso() : fechaInicio;
             while (!fecha.isAfter(fechaFin)) {
                 String diaSemanaIngles = fecha.getDayOfWeek().toString().toLowerCase();
                 String diaSemanaEsp = traducirDia(diaSemanaIngles);

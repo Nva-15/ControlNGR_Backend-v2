@@ -106,6 +106,11 @@ public class WebSecurityConfig {
                 // Imagenes de perfil
                 .requestMatchers("/api/imagenes/**").hasAnyRole(Roles.AUTH_PERSONAL_Y_ADMIN)
 
+                // Récord de asistencia propio (el servicio valida que el panel lo haya habilitado);
+                // dashboard y fichas: jefaturas (el servicio limita supervisores y gestores a su equipo)
+                .requestMatchers(HttpMethod.GET, "/api/reportes-asistencia/mi-record").hasAnyRole(Roles.AUTH_PERSONAL)
+                .requestMatchers("/api/reportes-asistencia/**").hasAnyRole(Roles.AUTH_GESTION)
+
                 // Listados y reportes de todo el personal: solo quienes tienen personal a cargo
                 .requestMatchers(HttpMethod.GET, "/api/asistencia", "/api/asistencia/fecha/**", "/api/asistencia/rango",
                         "/api/asistencia/hoy", "/api/asistencia/reporte/rango",

@@ -9,10 +9,15 @@ import com.example.ControlNGR.security.AccesoDenegadoException;
 import com.example.ControlNGR.service.ResumenAsistenciaService.Dia;
 import com.example.ControlNGR.service.ResumenAsistenciaService.Programado;
 import org.junit.jupiter.api.Test;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -120,13 +125,21 @@ class ResumenAsistenciaTest {
     }
 
     @Test
-    void alcanceYRecordPropio() {
+    void alcancePorRolYRecordPropio() {
         ParametroService parametros = mock(ParametroService.class);
-        ReporteAsistenciaService servicio = new ReporteAsistenciaService(null, null, null, null, parametros);
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        JdbcTemplate plano = mock(JdbcTemplate.class);
+        when(jdbc.getJdbcTemplate()).thenReturn(plano);
+        ReporteAsistenciaService servicio = new ReporteAsistenciaService(jdbc, null, null, null, parametros, null);
 
-        assertNull(servicio.departamentoForzado(empleado("jefe").getUsuario()), "las jefaturas ven todos los equipos");
-        assertEquals(2, servicio.departamentoForzado(empleado("supervisor").getUsuario()), "el supervisor, solo el suyo");
-        assertThrows(AccesoDenegadoException.class, () -> servicio.departamentoForzado(empleado("tecnico").getUsuario()));
+        assertNull(servicio.rolesVisibles(empleado("jefe").getUsuario()), "las jefaturas ven a todos");
+        Set<String> supervisor = servicio.rolesVisibles(empleado("supervisor").getUsuario());
+        assertEquals(Set.of("tecnico", "hd", "noc", "bo"), supervisor, "el supervisor, al personal operativo de todas las áreas");
+        assertTrue(ReporteAsistenciaService.dentroDelAlcance(supervisor, "NOC"));
+        assertFalse(ReporteAsistenciaService.dentroDelAlcance(supervisor, "supervisor"), "no ve a otros supervisores");
+        assertFalse(ReporteAsistenciaService.dentroDelAlcance(supervisor, "jefe"));
+        assertEquals(Set.of("asistente"), servicio.rolesVisibles(empleado("gestor").getUsuario()));
+        assertThrows(AccesoDenegadoException.class, () -> servicio.rolesVisibles(empleado("tecnico").getUsuario()));
 
         Empleado e = empleado("tecnico");
         e.setIngreso(LocalDate.of(2023, 1, 2));
@@ -135,9 +148,51 @@ class ResumenAsistenciaTest {
         when(parametros.texto(eq(ParametroService.MI_RECORD_DESDE), any())).thenReturn("2026-01-01");
         assertEquals(LocalDate.of(2026, 1, 1), servicio.miRecordDesde(e));
         e.setIngreso(LocalDate.of(2026, 3, 15));
-        assertEquals(LocalDate.of(2026, 3, 15), servicio.miRecordDesde(e), "nunca antes de su ingreso");
+        assertEquals(LocalDate.of(2026, 3, 15), servicio.miRecordDesde(e), "nunca antes del inicio de su historial");
+
+        // Marcó antes de su fecha de ingreso (mal registrada): el historial empieza en su primera marcación
+        when(plano.queryForObject(anyString(), eq(LocalDate.class), any(Object[].class))).thenReturn(LocalDate.of(2025, 6, 2));
+        when(parametros.texto(eq(ParametroService.MI_RECORD_DESDE), any())).thenReturn("INGRESO");
+        assertEquals(LocalDate.of(2025, 6, 2), servicio.miRecordDesde(e));
 
         when(parametros.booleano(eq(ParametroService.MI_RECORD_HABILITADO), anyBoolean())).thenReturn(false);
         assertThrows(AccesoDenegadoException.class, servicio::miRecord, "apagado: nadie ve su récord");
+    }
+
+    @Test
+    void hoyYGranularidad() {
+        assertEquals("dia", ReporteAsistenciaService.granularidad(31));
+        assertEquals("semana", ReporteAsistenciaService.granularidad(92));
+        assertEquals("mes", ReporteAsistenciaService.granularidad(400));
+        assertEquals("08:30", ReporteAsistenciaService.horaDeSegundos(8 * 3600 + 30 * 60 + 10));
+        // Promedio circular: 23:50 y 00:10 promedian 00:00 (no 12:00)
+        double a = (23 * 3600 + 50 * 60) * Math.PI / 43200, b = 10 * 60 * Math.PI / 43200;
+        assertEquals("00:00", ReporteAsistenciaService.horaPromedio((Math.sin(a) + Math.sin(b)) / 2, (Math.cos(a) + Math.cos(b)) / 2));
+
+        List<Map<String, Object>> hoy = List.of(
+                Map.of("estado", "a_tiempo", "enTurno", true), Map.of("estado", "tardanza", "enTurno", true),
+                Map.of("estado", "falta", "enTurno", false), Map.of("estado", "pendiente", "enTurno", false),
+                Map.of("estado", "vacaciones", "enTurno", false), Map.of("estado", "descanso", "enTurno", false),
+                Map.of("estado", "asistio", "enTurno", false));
+        Map<String, Object> k = ReporteAsistenciaService.contarHoy(hoy);
+        assertEquals(4L, k.get("programados"));
+        assertEquals(1L, k.get("porLlegar"));
+        assertEquals(2L, k.get("enTurno"));
+        assertEquals(1L, k.get("ausencias"));
+        assertEquals(1L, k.get("descansos"));
+        assertEquals(1L, k.get("sinHorario"));
+        assertTrue(ReporteAsistenciaService.urgencia("falta") < ReporteAsistenciaService.urgencia("tardanza"));
+        assertTrue(ReporteAsistenciaService.urgencia("pendiente") < ReporteAsistenciaService.urgencia("a_tiempo"));
+        assertTrue(ReporteAsistenciaService.urgencia("vacaciones") < ReporteAsistenciaService.urgencia("descanso"));
+    }
+
+    @Test
+    void horarioBaseSoloDesdeSuVigencia() {
+        com.example.ControlNGR.entity.Horario h = new com.example.ControlNGR.entity.Horario();
+        h.setVigenteDesde(LUNES);
+        assertFalse(h.vigenteEn(LUNES.minusDays(1)), "antes de su vigencia no programa (no genera faltas)");
+        assertTrue(h.vigenteEn(LUNES));
+        h.setVigenteDesde(null);
+        assertTrue(h.vigenteEn(LUNES.minusYears(3)));
     }
 }

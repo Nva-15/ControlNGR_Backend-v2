@@ -12,7 +12,7 @@ import java.util.Map;
 
 /**
  * Dashboard de asistencia y ficha del colaborador (jefaturas) y "Mi récord" (cada colaborador, si el panel lo habilita).
- * Los permisos y el alcance por equipo los valida el servicio.
+ * Los permisos y el alcance por rol los valida el servicio.
  */
 @RestController
 @RequestMapping("/api/reportes-asistencia")
@@ -45,9 +45,10 @@ public class ReporteAsistenciaController {
             @RequestParam(value = "departamentoId", required = false) Integer departamentoId,
             @RequestParam(value = "rol", required = false) String rol,
             @RequestParam(value = "turno", required = false) String turno,
+            @RequestParam(value = "funcion", required = false) String funcion,
             @RequestParam(value = "personal", defaultValue = "activos") String personal,
             @RequestParam(value = "empleadoId", required = false) Integer empleadoId) {
-        return ResponseEntity.ok(servicio.dashboard(new Filtro(desde, hasta, departamentoId, rol, turno, personal, empleadoId)));
+        return ResponseEntity.ok(servicio.dashboard(new Filtro(desde, hasta, departamentoId, rol, turno, funcion, personal, empleadoId, null)));
     }
 
     /** Ficha de un colaborador; sin "desde", desde su fecha de ingreso. */

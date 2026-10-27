@@ -1,5 +1,6 @@
 package com.example.ControlNGR.dto;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -8,8 +9,14 @@ import java.util.List;
  * fecha (AAAA-MM-DD); en el horario base, el día de la semana (lunes ... domingo).
  *
  * @param guardarComoBase solo en una semana: guarda también estos turnos como horario base de la persona
+ * @param vigenteDesde solo en el horario base: desde qué fecha programa los días (si no se indica, conserva
+ *                     la que tenía o, si es nuevo, desde hoy)
  */
-public record TurnoSemanaDTO(List<Dia> dias, Boolean guardarComoBase) {
+public record TurnoSemanaDTO(List<Dia> dias, Boolean guardarComoBase, LocalDate vigenteDesde) {
+
+    public TurnoSemanaDTO(List<Dia> dias, Boolean guardarComoBase) {
+        this(dias, guardarComoBase, null);
+    }
 
     public static final String LABORAL = "normal";
     public static final String DESCANSO = "descanso";

@@ -215,7 +215,7 @@ public class HorarioSemanalService {
     /** Llena el día con el horario base de la persona; si aún no lo tiene, queda pendiente de completar. */
     private void completarDesdeHorarioBase(HorarioSemanalDetalle detalle) {
         Optional<Horario> base = horarioRepository.findByEmpleadoIdAndDiaSemana(
-                detalle.getEmpleado().getId(), detalle.getDiaSemana());
+                detalle.getEmpleado().getId(), detalle.getDiaSemana()).filter(h -> h.vigenteEn(detalle.getFecha()));
         if (base.isPresent()) {
             detalle.copiarDesdeHorarioBase(base.get());
         } else {

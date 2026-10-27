@@ -188,8 +188,8 @@ public class AlertaAsistenciaService {
     /** Alertas del período en curso dentro del alcance de quien consulta, con las nuevas marcadas. */
     public Map<String, Object> listar(Integer departamentoId) {
         Usuario u = usuarioActual.requerido();
-        Integer forzado = reporteService.departamentoForzado(u);
-        Integer depto = forzado != null ? forzado : departamentoId;
+        Set<String> alcance = reporteService.rolesVisibles(u);
+        Integer depto = departamentoId;
         LocalDateTime visto = vistoEn(u.getId());
         LocalDate hoy = LocalDate.now();
         List<Map<String, Object>> alertas = new ArrayList<>();
@@ -200,6 +200,7 @@ public class AlertaAsistenciaService {
             String sql = "SELECT a.empleado_id, e.nombre, d.nombre depto, a.valor, a.umbral, a.detalle, a.periodo_desde, a.periodo_hasta, a.creado_en "
                     + "FROM alerta_asistencia a JOIN empleados e ON e.id = a.empleado_id LEFT JOIN departamentos d ON d.id = a.departamento_id "
                     + "WHERE a.tipo = :t AND a.periodo_clave = :k AND e.activo = 1";
+            sql += ReporteAsistenciaService.condicionAlcance(alcance, params);
             if (depto != null) { sql += " AND a.departamento_id = :d"; params.addValue("d", depto); }
             jdbc.query(sql, params, rs -> {
                 Map<String, Object> m = new LinkedHashMap<>();
@@ -233,7 +234,7 @@ public class AlertaAsistenciaService {
     public long contarNuevas(Usuario u) {
         if (u == null || !Roles.esGestion(u.getRol())) return 0;
         try {
-            Integer depto = reporteService.departamentoForzado(u);
+            Set<String> alcance = reporteService.rolesVisibles(u);
             LocalDateTime visto = vistoEn(u.getId());
             LocalDate hoy = LocalDate.now();
             long n = 0;
@@ -243,14 +244,14 @@ public class AlertaAsistenciaService {
                         .addValue("k", periodo(c.periodo(), hoy).clave());
                 String sql = "SELECT COUNT(*) FROM alerta_asistencia a JOIN empleados e ON e.id = a.empleado_id "
                         + "WHERE a.tipo = :t AND a.periodo_clave = :k AND e.activo = 1";
-                if (depto != null) { sql += " AND a.departamento_id = :d"; params.addValue("d", depto); }
+                sql += ReporteAsistenciaService.condicionAlcance(alcance, params);
                 if (visto != null) { sql += " AND a.creado_en > :v"; params.addValue("v", Timestamp.valueOf(visto)); }
                 Long x = jdbc.queryForObject(sql, params, Long.class);
                 n += x == null ? 0 : x;
             }
             return n;
         } catch (RuntimeException e) {
-            return 0; // jefatura sin equipo asignado: sin alertas
+            return 0; // rol sin alcance: sin alertas
         }
     }
 

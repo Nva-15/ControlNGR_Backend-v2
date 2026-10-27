@@ -17,6 +17,7 @@ public class HorarioResponseDTO {
     private String tipoDia;
     private String turno;
     private java.util.List<String> funciones;
+    private String vigenteDesde;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -35,6 +36,7 @@ public class HorarioResponseDTO {
         this.tipoDia = horario.getTipoDia() != null ? horario.getTipoDia() : "normal";
         this.turno = horario.getTurno() != null ? horario.getTurno() : "manana";
         this.funciones = com.example.ControlNGR.service.FuncionTurnoService.aLista(horario.getFunciones());
+        this.vigenteDesde = horario.getVigenteDesde() != null ? horario.getVigenteDesde().toString() : null;
     }
 
     private String formatTime(LocalTime time) {
@@ -42,6 +44,9 @@ public class HorarioResponseDTO {
     }
 
     // Getters y Setters
+    public String getVigenteDesde() { return vigenteDesde; }
+    public void setVigenteDesde(String vigenteDesde) { this.vigenteDesde = vigenteDesde; }
+
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
 

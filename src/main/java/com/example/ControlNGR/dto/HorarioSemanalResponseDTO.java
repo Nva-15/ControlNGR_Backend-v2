@@ -26,6 +26,9 @@ public class HorarioSemanalResponseDTO {
     private int totalDescansos;
     private int totalVacaciones;
 
+    /** Al crear copiando otra semana: colaboradores que no estaban en el origen y entraron con su horario base. */
+    private Integer colaboradoresAgregados;
+
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
@@ -53,6 +56,9 @@ public class HorarioSemanalResponseDTO {
         this.esSemanaActual = !hoy.isBefore(horarioSemanal.getFechaInicio()) &&
                              !hoy.isAfter(horarioSemanal.getFechaFin());
     }
+
+    public Integer getColaboradoresAgregados() { return colaboradoresAgregados; }
+    public void setColaboradoresAgregados(Integer colaboradoresAgregados) { this.colaboradoresAgregados = colaboradoresAgregados; }
 
     // Agregar empleado
     public void agregarEmpleado(EmpleadoHorarioSemanalDTO empleado) {

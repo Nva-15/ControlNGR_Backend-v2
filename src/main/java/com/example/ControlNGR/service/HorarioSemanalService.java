@@ -4,9 +4,15 @@ import com.example.ControlNGR.dto.*;
 import com.example.ControlNGR.entity.*;
 import com.example.ControlNGR.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -33,7 +39,17 @@ public class HorarioSemanalService {
     @Autowired
     private SolicitudRepository solicitudRepository;
 
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+
+    /** Día creado sin horario base (la persona aún no lo tenía): se completa al registrarlo. */
+    public static final String ORIGEN_SIN_HORARIO_BASE = "sin_horario_base";
+
+    /** Tipos de día que forman parte del patrón semanal y se copian a la semana siguiente;
+     *  los demás (vacaciones, descanso médico, licencia, permiso, compensado) son puntuales. */
+    private static final Set<String> TIPOS_DIA_COPIABLES = Set.of("normal", "descanso");
 
     // ==================== CREAR SEMANA ====================
 
@@ -71,13 +87,14 @@ public class HorarioSemanalService {
         logger.debug("Objeto semana creado");
 
         // Si hay una semana de origen para copiar
+        int agregados = 0;
         if (request.getCopiarDeId() != null) {
             logger.info("Copiando de semana origen ID: {}", request.getCopiarDeId());
             HorarioSemanal semanaOrigen = horarioSemanalRepository.findById(request.getCopiarDeId())
                     .orElseThrow(() -> new RuntimeException("Semana de origen no encontrada"));
             semana = horarioSemanalRepository.save(semana);
             logger.debug("Semana guardada con ID: {}", semana.getId());
-            copiarDetallesDeSemana(semanaOrigen, semana);
+            agregados = copiarDetallesDeSemana(semanaOrigen, semana);
         } else {
             logger.info("Generando desde horario base");
             semana = horarioSemanalRepository.save(semana);
@@ -91,6 +108,7 @@ public class HorarioSemanalService {
 
         logger.info("Construyendo response DTO...");
         HorarioSemanalResponseDTO response = construirResponseDTO(semana);
+        response.setColaboradoresAgregados(agregados);
         logger.info("Semana generada exitosamente con ID: {}", response.getId());
         return response;
     }
@@ -125,22 +143,10 @@ public class HorarioSemanalService {
 
         LocalDate fecha = semana.getFechaInicio();
         while (!fecha.isAfter(semana.getFechaFin())) {
-            String diaSemana = traducirDia(fecha.getDayOfWeek().toString().toLowerCase());
-
             for (Empleado empleado : empleados) {
                 HorarioSemanalDetalle detalle = new HorarioSemanalDetalle(semana, empleado, fecha);
 
-                // Buscar horario base para este día
-                Optional<Horario> horarioBase = horarioRepository
-                        .findByEmpleadoIdAndDiaSemana(empleado.getId(), diaSemana);
-
-                if (horarioBase.isPresent()) {
-                    detalle.copiarDesdeHorarioBase(horarioBase.get());
-                } else {
-                    detalle.setTipoDia("normal");
-                    detalle.setOrigenTipoDia("manual");
-                }
-
+                completarDesdeHorarioBase(detalle);
                 detalleRepository.save(detalle);
             }
 
@@ -148,36 +154,29 @@ public class HorarioSemanalService {
         }
     }
 
-    private void copiarDetallesDeSemana(HorarioSemanal origen, HorarioSemanal destino) {
-        List<HorarioSemanalDetalle> detallesOrigen = detalleRepository.findByHorarioSemanalIdOrdenado(origen.getId());
+    /**
+     * Copia los turnos de la semana origen al personal activo con horario. Se empareja por día de la
+     * semana (lunes con lunes). Quien no estaba en la semana origen (ingreso nuevo, reactivado o que
+     * cambió a un rol con horario) entra con su horario base, igual que los días puntuales del origen
+     * (vacaciones, permisos...), que no se repiten. Devuelve cuántos colaboradores se agregaron así.
+     */
+    private int copiarDetallesDeSemana(HorarioSemanal origen, HorarioSemanal destino) {
+        Map<Integer, Map<DayOfWeek, HorarioSemanalDetalle>> origenPorEmpleado = new HashMap<>();
+        for (HorarioSemanalDetalle d : detalleRepository.findByHorarioSemanalIdOrdenado(origen.getId())) {
+            origenPorEmpleado.computeIfAbsent(d.getEmpleado().getId(), k -> new EnumMap<>(DayOfWeek.class))
+                    .put(d.getFecha().getDayOfWeek(), d);
+        }
 
-        // Agrupar por empleado
-        Map<Integer, List<HorarioSemanalDetalle>> porEmpleado = detallesOrigen.stream()
-                .collect(Collectors.groupingBy(d -> d.getEmpleado().getId()));
-
-        LocalDate fechaDestino = destino.getFechaInicio();
-        int diaIndex = 0;
-
-        while (!fechaDestino.isAfter(destino.getFechaFin())) {
-            final int currentDiaIndex = diaIndex;
-            final LocalDate currentFecha = fechaDestino;
-
-            for (Map.Entry<Integer, List<HorarioSemanalDetalle>> entry : porEmpleado.entrySet()) {
-                List<HorarioSemanalDetalle> detallesEmpleado = entry.getValue();
-
-                // Saltar empleados inactivos y roles sin horario (configurable en el panel admin)
-                if (!detallesEmpleado.isEmpty() && (!Boolean.TRUE.equals(detallesEmpleado.get(0).getEmpleado().getActivo())
-                        || !detallesEmpleado.get(0).getEmpleado().tieneHorario())) {
-                    continue;
-                }
-
-                if (currentDiaIndex < detallesEmpleado.size()) {
-                    HorarioSemanalDetalle detalleOrigen = detallesEmpleado.get(currentDiaIndex);
-
-                    HorarioSemanalDetalle nuevoDetalle = new HorarioSemanalDetalle(
-                            destino, detalleOrigen.getEmpleado(), currentFecha);
-
-                    // Copiar datos (excepto solicitudes)
+        int agregados = 0;
+        for (Empleado empleado : empleadoRepository.findEmpleadosConHorario()) {
+            Map<DayOfWeek, HorarioSemanalDetalle> turnos = origenPorEmpleado.getOrDefault(empleado.getId(), Map.of());
+            if (turnos.isEmpty()) {
+                agregados++;
+            }
+            for (LocalDate fecha = destino.getFechaInicio(); !fecha.isAfter(destino.getFechaFin()); fecha = fecha.plusDays(1)) {
+                HorarioSemanalDetalle nuevoDetalle = new HorarioSemanalDetalle(destino, empleado, fecha);
+                HorarioSemanalDetalle detalleOrigen = turnos.get(fecha.getDayOfWeek());
+                if (esCopiable(detalleOrigen)) {
                     nuevoDetalle.setHoraEntrada(detalleOrigen.getHoraEntrada());
                     nuevoDetalle.setHoraSalida(detalleOrigen.getHoraSalida());
                     nuevoDetalle.setHoraAlmuerzoInicio(detalleOrigen.getHoraAlmuerzoInicio());
@@ -185,13 +184,124 @@ public class HorarioSemanalService {
                     nuevoDetalle.setTipoDia(detalleOrigen.getTipoDia());
                     nuevoDetalle.setTurno(detalleOrigen.getTurno());
                     nuevoDetalle.setOrigenTipoDia("manual");
+                } else {
+                    completarDesdeHorarioBase(nuevoDetalle);
+                }
+                detalleRepository.save(nuevoDetalle);
+            }
+        }
+        if (agregados > 0) {
+            logger.info("{}: {} colaborador(es) que no estaban en la semana origen entraron con su horario base",
+                    destino.getNombre(), agregados);
+        }
+        return agregados;
+    }
 
-                    detalleRepository.save(nuevoDetalle);
+    /** Un día del origen se copia si es parte del patrón semanal: ni de una solicitud ni pendiente de horario base. */
+    static boolean esCopiable(HorarioSemanalDetalle detalle) {
+        return detalle != null
+                && !"solicitud_aprobada".equals(detalle.getOrigenTipoDia())
+                && !ORIGEN_SIN_HORARIO_BASE.equals(detalle.getOrigenTipoDia())
+                && TIPOS_DIA_COPIABLES.contains(detalle.getTipoDia() == null ? "normal" : detalle.getTipoDia());
+    }
+
+    /** Llena el día con el horario base de la persona; si aún no lo tiene, queda pendiente de completar. */
+    private void completarDesdeHorarioBase(HorarioSemanalDetalle detalle) {
+        Optional<Horario> base = horarioRepository.findByEmpleadoIdAndDiaSemana(
+                detalle.getEmpleado().getId(), detalle.getDiaSemana());
+        if (base.isPresent()) {
+            detalle.copiarDesdeHorarioBase(base.get());
+        } else {
+            detalle.setTipoDia("normal");
+            detalle.setOrigenTipoDia(ORIGEN_SIN_HORARIO_BASE);
+        }
+    }
+
+    // ==================== INCORPORAR PERSONAL A SEMANAS YA CREADAS ====================
+
+    /**
+     * Agrega al empleado (ingreso nuevo, reactivado o con un rol que ahora tiene horario) a la semana
+     * vigente y a las futuras, desde hoy y con su horario base. Los días pasados no se tocan.
+     * Devuelve los días agregados.
+     */
+    @Transactional
+    public int incorporarEmpleado(Empleado empleado) {
+        if (empleado == null || !Boolean.TRUE.equals(empleado.getActivo()) || !empleado.tieneHorario()) {
+            return 0;
+        }
+        return incorporar(List.of(empleado), LocalDate.now());
+    }
+
+    /** Agrega a todo el personal activo con horario que falte en la semana vigente y las futuras. */
+    @Transactional
+    public int incorporarFaltantes() {
+        return incorporar(empleadoRepository.findEmpleadosConHorario(), LocalDate.now());
+    }
+
+    int incorporar(List<Empleado> empleados, LocalDate hoy) {
+        int total = 0;
+        for (HorarioSemanal semana : horarioSemanalRepository.findNoTerminadasDesde(hoy)) {
+            LocalDate desde = semana.getFechaInicio().isAfter(hoy) ? semana.getFechaInicio() : hoy;
+            Set<String> existentes = new HashSet<>();
+            for (Object[] fila : detalleRepository.findEmpleadoYFechaDesde(semana.getId(), desde)) {
+                existentes.add(fila[0] + "|" + fila[1]);
+            }
+            Set<Integer> incorporados = new HashSet<>();
+            for (Empleado empleado : empleados) {
+                for (LocalDate fecha = desde; !fecha.isAfter(semana.getFechaFin()); fecha = fecha.plusDays(1)) {
+                    if (existentes.contains(empleado.getId() + "|" + fecha)) continue;
+                    HorarioSemanalDetalle detalle = new HorarioSemanalDetalle(semana, empleado, fecha);
+                    completarDesdeHorarioBase(detalle);
+                    detalleRepository.save(detalle);
+                    incorporados.add(empleado.getId());
+                    total++;
                 }
             }
+            if (!incorporados.isEmpty()) {
+                // Solicitudes aprobadas que ya tuvieran en esas fechas (p. ej. al reactivar a alguien)
+                for (Solicitud solicitud : solicitudRepository.findSolicitudesAprobadasEnRango(desde, semana.getFechaFin())) {
+                    if (incorporados.contains(solicitud.getEmpleado().getId())) {
+                        aplicarSolicitudASemana(solicitud, semana);
+                    }
+                }
+                logger.info("{}: se agregaron {} colaborador(es) con su horario base desde {}",
+                        semana.getNombre(), incorporados.size(), desde);
+            }
+        }
+        return total;
+    }
 
-            fechaDestino = fechaDestino.plusDays(1);
-            diaIndex++;
+    /**
+     * Cuando se registra o cambia el horario base de alguien, completa sus días de hoy en adelante
+     * que se crearon sin horario base. Los días que el jefe ya editó no se tocan.
+     */
+    @Transactional
+    public void completarDiasSinHorarioBase(Integer empleadoId) {
+        List<HorarioSemanalDetalle> pendientes = detalleRepository
+                .findByEmpleadoIdAndFechaGreaterThanEqualAndOrigenTipoDia(empleadoId, LocalDate.now(), ORIGEN_SIN_HORARIO_BASE);
+        for (HorarioSemanalDetalle detalle : pendientes) {
+            completarDesdeHorarioBase(detalle);
+            detalleRepository.save(detalle);
+        }
+    }
+
+    /** Al iniciar y cada día a las 00:20 (hora de Lima): nadie con horario queda fuera de las semanas creadas. */
+    @EventListener(ApplicationReadyEvent.class)
+    public void alIniciar() {
+        sincronizarPersonal();
+    }
+
+    @Scheduled(cron = "0 20 0 * * *", zone = "America/Lima")
+    public void programado() {
+        sincronizarPersonal();
+    }
+
+    private void sincronizarPersonal() {
+        try {
+            // Llamada interna: se abre la transaccion explicitamente (el proxy de @Transactional no aplica)
+            new TransactionTemplate(transactionManager).execute(status -> incorporarFaltantes());
+        } catch (Exception e) {
+            logger.error("Error al agregar personal a las semanas de horario: {}", e.getMessage(), e);
         }
     }
 
@@ -403,6 +513,7 @@ public class HorarioSemanalService {
             }
 
             aplicarDatosADetalle(detalle, datos);
+            detalle.setOrigenTipoDia("manual");
             detalleRepository.save(detalle);
         }
 
@@ -474,6 +585,7 @@ public class HorarioSemanalService {
             }
         }
 
+        detalle.setOrigenTipoDia("manual");
         detalleRepository.save(detalle);
         return construirResponseDTO(detalle.getHorarioSemanal());
     }

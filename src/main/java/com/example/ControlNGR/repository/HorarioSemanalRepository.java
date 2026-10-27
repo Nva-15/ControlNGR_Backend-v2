@@ -45,6 +45,10 @@ public interface HorarioSemanalRepository extends JpaRepository<HorarioSemanal, 
             @Param("fechaInicio") LocalDate fechaInicio,
             @Param("fechaFin") LocalDate fechaFin);
 
+    /** Semanas que aún no terminan (la vigente y las futuras), sin las históricas. */
+    @Query("SELECT h FROM HorarioSemanal h WHERE h.fechaFin >= :fecha AND h.estado <> 'historico'")
+    List<HorarioSemanal> findNoTerminadasDesde(@Param("fecha") LocalDate fecha);
+
     // Contar semanas por estado
     long countByEstado(String estado);
 }

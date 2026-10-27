@@ -29,6 +29,9 @@ public class HorarioService {
     @Autowired
     private EmpleadoRepository empleadoRepository;
 
+    @Autowired
+    private HorarioSemanalService horarioSemanalService;
+
     private static final List<String> DIAS_VALIDOS = Arrays.asList(
         "lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"
     );
@@ -196,6 +199,7 @@ public class HorarioService {
             resultados.add(new HorarioResponseDTO(guardado));
         }
 
+        horarioSemanalService.completarDiasSinHorarioBase(empleadoId);
         return resultados;
     }
 
@@ -236,6 +240,7 @@ public class HorarioService {
         horario.setTipoDia(request.getTipoDia() != null ? request.getTipoDia().toLowerCase() : "normal");
 
         Horario guardado = horarioRepository.save(horario);
+        horarioSemanalService.completarDiasSinHorarioBase(empleado.getId());
         return new HorarioResponseDTO(guardado);
     }
 
@@ -272,6 +277,7 @@ public class HorarioService {
         horario.setTipoDia(request.getTipoDia() != null ? request.getTipoDia().toLowerCase() : "normal");
 
         Horario guardado = horarioRepository.save(horario);
+        horarioSemanalService.completarDiasSinHorarioBase(empleado.getId());
         return new HorarioResponseDTO(guardado);
     }
 
@@ -289,7 +295,7 @@ public class HorarioService {
         horarioRepository.deleteByEmpleadoId(empleadoId);
 
         // Crear horarios para los 7 dias de la semana
-        return DIAS_VALIDOS.stream().map(dia -> {
+        List<HorarioResponseDTO> creados = DIAS_VALIDOS.stream().map(dia -> {
             Horario horario = new Horario();
             horario.setEmpleado(empleado);
             horario.setDiaSemana(dia);
@@ -306,6 +312,8 @@ public class HorarioService {
             horario.setTipoDia("normal");
             return new HorarioResponseDTO(horarioRepository.save(horario));
         }).collect(Collectors.toList());
+        horarioSemanalService.completarDiasSinHorarioBase(empleadoId);
+        return creados;
     }
 
     @Transactional
@@ -351,6 +359,7 @@ public class HorarioService {
         }
 
         Horario actualizado = horarioRepository.save(horario);
+        horarioSemanalService.completarDiasSinHorarioBase(actualizado.getEmpleado().getId());
         return new HorarioResponseDTO(actualizado);
     }
 

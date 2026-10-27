@@ -49,6 +49,9 @@ public class EmpleadoService {
     @Autowired
     private com.example.ControlNGR.repository.RostroEmpleadoRepository rostroEmpleadoRepository;
 
+    @Autowired
+    private HorarioSemanalService horarioSemanalService;
+
     /** Obtiene el perfil completo de un empleado. */
     public Map<String, Object> obtenerPerfilCompleto(Integer empleadoId) {
         Optional<Empleado> empleadoOpt = empleadoRepository.findById(empleadoId);
@@ -381,7 +384,10 @@ public class EmpleadoService {
             }
             usuarioRepository.save(usuario);
         }
-        return empleadoRepository.save(empleado);
+        empleado = empleadoRepository.save(empleado);
+        // Reactivado o con un rol que ahora tiene horario: entra a la semana vigente y las futuras
+        horarioSemanalService.incorporarEmpleado(empleado);
+        return empleado;
     }
 
     /** Crea un empleado nuevo junto con su usuario de acceso (usuario y contraseña inicial: DNI). */
@@ -428,6 +434,8 @@ public class EmpleadoService {
         for (TipoSaldo tipo : TipoSaldo.values()) {
             saldoRepository.save(new Saldo(empleado, tipo));
         }
+        // Aparece en la semana vigente y las futuras desde hoy (sus días se completan al registrar su horario base)
+        horarioSemanalService.incorporarEmpleado(empleado);
         return empleado;
     }
 
@@ -447,7 +455,9 @@ public class EmpleadoService {
             }
             usuarioRepository.save(usuario);
         }
-        return empleadoRepository.save(empleado);
+        empleado = empleadoRepository.save(empleado);
+        horarioSemanalService.incorporarEmpleado(empleado);
+        return empleado;
     }
 
     /** Guarda cambios simples del empleado (por ejemplo, la foto). */

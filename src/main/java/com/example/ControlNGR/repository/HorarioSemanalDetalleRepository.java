@@ -79,6 +79,15 @@ public interface HorarioSemanalDetalleRepository extends JpaRepository<HorarioSe
            "ORDER BY d.empleado.nombre ASC, d.fecha ASC")
     List<HorarioSemanalDetalle> findByHorarioSemanalIdOrdenado(@Param("semanaId") Integer semanaId);
 
+    /** Pares (empleadoId, fecha) que ya tienen día en la semana a partir de una fecha. */
+    @Query("SELECT d.empleado.id, d.fecha FROM HorarioSemanalDetalle d " +
+           "WHERE d.horarioSemanal.id = :semanaId AND d.fecha >= :desde")
+    List<Object[]> findEmpleadoYFechaDesde(@Param("semanaId") Integer semanaId, @Param("desde") LocalDate desde);
+
+    /** Días de un empleado desde una fecha con un origen dado (p. ej. los que esperan su horario base). */
+    List<HorarioSemanalDetalle> findByEmpleadoIdAndFechaGreaterThanEqualAndOrigenTipoDia(
+            Integer empleadoId, LocalDate fecha, String origenTipoDia);
+
     /** Días publicados (semana activa) de los empleados activos de un equipo en una fecha. */
     @Query("SELECT d FROM HorarioSemanalDetalle d WHERE d.fecha = :fecha AND d.horarioSemanal.estado = 'activo' " +
            "AND d.empleado.departamento.id = :departamentoId AND d.empleado.activo = true")

@@ -13,10 +13,12 @@ public record TurnoSemanaDTO(List<Dia> dias, Boolean guardarComoBase) {
 
     public static final String LABORAL = "normal";
     public static final String DESCANSO = "descanso";
+    /** No trabaja porque es feriado (solo en fechas registradas en Feriados; no cuenta como su descanso semanal). */
+    public static final String DESCANSO_FERIADO = "descanso_feriado";
     /** Días de descanso permitidos por semana. */
     public static final int MAX_DESCANSOS = 1;
 
-    /** Un día: laboral (con turno, horas y funciones) o descanso. */
+    /** Un día: laboral (con turno, horas y funciones), descanso o descanso feriado. */
     public record Dia(String clave, String tipoDia, String turno, LocalTime horaEntrada, LocalTime horaSalida,
                       LocalTime horaAlmuerzoInicio, LocalTime horaAlmuerzoFin, List<String> funciones) {
 
@@ -44,8 +46,8 @@ public record TurnoSemanaDTO(List<Dia> dias, Boolean guardarComoBase) {
             if (clave == null || clave.isBlank()) {
                 throw new IllegalArgumentException("Falta el día");
             }
-            if (!LABORAL.equals(tipoDia) && !DESCANSO.equals(tipoDia)) {
-                throw new IllegalArgumentException("Cada día debe ser laboral o descanso");
+            if (!LABORAL.equals(tipoDia) && !DESCANSO.equals(tipoDia) && !DESCANSO_FERIADO.equals(tipoDia)) {
+                throw new IllegalArgumentException("Cada día debe ser laboral, descanso o descanso feriado");
             }
             if (!esLaboral()) return;
             if (horaEntrada == null || horaSalida == null) {

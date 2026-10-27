@@ -18,4 +18,6 @@ public interface DiaFeriadoRepository extends JpaRepository<DiaFeriado, Integer>
     List<DiaFeriado> findByAnio(@Param("anio") int anio);
 
     List<DiaFeriado> findAllByOrderByFechaAsc();
+
+    List<DiaFeriado> findByFechaBetweenAndActivoTrueOrderByFechaAsc(LocalDate desde, LocalDate hasta);
 }

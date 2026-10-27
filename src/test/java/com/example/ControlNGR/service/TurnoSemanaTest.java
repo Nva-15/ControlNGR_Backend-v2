@@ -6,6 +6,8 @@ import com.example.ControlNGR.entity.Empleado;
 import com.example.ControlNGR.entity.FuncionTurno;
 import com.example.ControlNGR.entity.HorarioSemanal;
 import com.example.ControlNGR.entity.HorarioSemanalDetalle;
+import com.example.ControlNGR.entity.DiaFeriado;
+import com.example.ControlNGR.repository.DiaFeriadoRepository;
 import com.example.ControlNGR.repository.FuncionTurnoRepository;
 import com.example.ControlNGR.repository.HorarioSemanalDetalleRepository;
 import com.example.ControlNGR.repository.HorarioSemanalRepository;
@@ -59,6 +61,15 @@ class TurnoSemanaTest {
         ReflectionTestUtils.setField(servicio, "horarioSemanalRepository", semanaRepo);
         ReflectionTestUtils.setField(servicio, "detalleRepository", detalleRepo);
         ReflectionTestUtils.setField(servicio, "funcionTurnoService", funciones);
+        DiaFeriadoRepository feriadoRepo = mock(DiaFeriadoRepository.class);
+        DiaFeriado todosLosSantos = new DiaFeriado();
+        todosLosSantos.setFecha(LUNES.plusDays(6));
+        todosLosSantos.setDescripcion("Todos los Santos");
+        todosLosSantos.setActivo(true);
+        when(feriadoRepo.findByFechaAndActivoTrue(any())).thenReturn(Optional.empty());
+        when(feriadoRepo.findByFechaAndActivoTrue(LUNES.plusDays(6))).thenReturn(Optional.of(todosLosSantos));
+        when(feriadoRepo.findByFechaBetweenAndActivoTrueOrderByFechaAsc(any(), any())).thenReturn(List.of(todosLosSantos));
+        ReflectionTestUtils.setField(servicio, "diaFeriadoRepository", feriadoRepo);
 
         semana = new HorarioSemanal(LUNES, LUNES.plusDays(6), null);
         semana.setId(5);
@@ -146,6 +157,23 @@ class TurnoSemanaTest {
         dias.get(6).setTipoDia("vacaciones");
         assertDoesNotThrow(() -> servicio.actualizarSemanaEmpleado(5, 10,
                 new TurnoSemanaDTO(List.of(descanso(LUNES.plusDays(3))), false)));
+    }
+
+    @Test
+    void descansoFeriadoSoloEnFeriadosYNoCuentaComoDescanso() {
+        Dia feriadoDomingo = new Dia(LUNES.plusDays(6).toString(), "descanso_feriado", null, null, null, null, null, null);
+        // Descanso el jueves + descanso feriado el domingo (01/11 Todos los Santos): permitido
+        var semanaDto = servicio.actualizarSemanaEmpleado(5, 10,
+                new TurnoSemanaDTO(List.of(descanso(LUNES.plusDays(3)), feriadoDomingo), false));
+        assertEquals("descanso_feriado", dias.get(6).getTipoDia());
+        assertNull(dias.get(6).getHoraEntrada());
+        assertEquals("Todos los Santos", semanaDto.getFeriados().get(LUNES.plusDays(6).toString()), "la semana informa sus feriados");
+
+        // El lunes 26/10 no es feriado: se rechaza (eso es una compensación)
+        Dia lunesNoFeriado = new Dia(LUNES.toString(), "descanso_feriado", null, null, null, null, null, null);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class,
+                () -> servicio.actualizarSemanaEmpleado(5, 10, new TurnoSemanaDTO(List.of(lunesNoFeriado), false)));
+        assertTrue(e.getMessage().contains("no es feriado"));
     }
 
     @Test

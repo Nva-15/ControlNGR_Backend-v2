@@ -45,6 +45,9 @@ public class HorarioSemanalService {
     @Autowired
     private FuncionTurnoService funcionTurnoService;
 
+    @Autowired
+    private DiaFeriadoRepository diaFeriadoRepository;
+
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     /** Día creado sin horario base (la persona aún no lo tenía): se completa al registrarlo. */
@@ -518,6 +521,7 @@ public class HorarioSemanalService {
             }
 
             aplicarDatosADetalle(detalle, datos);
+            validarDescansoFeriado(detalle);
             detalle.setOrigenTipoDia("manual");
             detalleRepository.save(detalle);
             empleados.add(detalle.getEmpleado().getId());
@@ -554,6 +558,7 @@ public class HorarioSemanalService {
                 continue;
             }
             aplicarTurno(detalle, dia);
+            validarDescansoFeriado(detalle);
             detalleRepository.save(detalle);
             actualizados++;
         }
@@ -582,6 +587,25 @@ public class HorarioSemanalService {
             detalle.setHoraAlmuerzoFin(null);
             detalle.setFunciones(null);
         }
+    }
+
+    /** "Descanso feriado" solo en una fecha registrada como feriado (Panel admin → Feriados). */
+    private void validarDescansoFeriado(HorarioSemanalDetalle detalle) {
+        if (TurnoSemanaDTO.DESCANSO_FERIADO.equals(detalle.getTipoDia())
+                && diaFeriadoRepository.findByFechaAndActivoTrue(detalle.getFecha()).isEmpty()) {
+            throw new IllegalArgumentException("El " + detalle.getFecha().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                    + " no es feriado: \"Descanso feriado\" solo se usa en los feriados registrados (Panel admin → Feriados)."
+                    + " Si descansa a cambio de un feriado trabajado, registre una solicitud de compensación.");
+        }
+    }
+
+    /** Feriados activos dentro de la semana: fecha → descripción. */
+    private Map<String, String> feriadosDe(HorarioSemanal semana) {
+        Map<String, String> feriados = new LinkedHashMap<>();
+        for (DiaFeriado f : diaFeriadoRepository.findByFechaBetweenAndActivoTrueOrderByFechaAsc(semana.getFechaInicio(), semana.getFechaFin())) {
+            feriados.put(f.getFecha().toString(), f.getDescripcion());
+        }
+        return feriados;
     }
 
     /** Una persona no puede tener más de un día de descanso en la semana (vacaciones, permisos... no cuentan). */
@@ -671,6 +695,7 @@ public class HorarioSemanalService {
             }
         }
         aplicarFunciones(detalle, request.getFunciones());
+        validarDescansoFeriado(detalle);
 
         detalle.setOrigenTipoDia("manual");
         detalleRepository.save(detalle);
@@ -746,6 +771,7 @@ public class HorarioSemanalService {
         dto.getEmpleados().sort((a, b) -> a.getEmpleadoNombre().compareToIgnoreCase(b.getEmpleadoNombre()));
 
         dto.calcularEstadisticas();
+        dto.setFeriados(feriadosDe(semana));
         return dto;
     }
 

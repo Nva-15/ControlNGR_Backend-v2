@@ -54,6 +54,7 @@ class HorarioSemanalPersonalTest {
         ReflectionTestUtils.setField(servicio, "horarioRepository", horarioRepo);
         ReflectionTestUtils.setField(servicio, "empleadoRepository", empleadoRepo);
         ReflectionTestUtils.setField(servicio, "solicitudRepository", solicitudRepo);
+        ReflectionTestUtils.setField(servicio, "diaFeriadoRepository", mock(com.example.ControlNGR.repository.DiaFeriadoRepository.class));
 
         when(detalleRepo.save(any())).thenAnswer(inv -> {
             HorarioSemanalDetalle d = inv.getArgument(0);

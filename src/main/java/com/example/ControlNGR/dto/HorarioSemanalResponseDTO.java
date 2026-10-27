@@ -29,6 +29,9 @@ public class HorarioSemanalResponseDTO {
     /** Al crear copiando otra semana: colaboradores que no estaban en el origen y entraron con su horario base. */
     private Integer colaboradoresAgregados;
 
+    /** Feriados registrados dentro de la semana: fecha (AAAA-MM-DD) → descripción. */
+    private java.util.Map<String, String> feriados = new java.util.LinkedHashMap<>();
+
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
@@ -56,6 +59,9 @@ public class HorarioSemanalResponseDTO {
         this.esSemanaActual = !hoy.isBefore(horarioSemanal.getFechaInicio()) &&
                              !hoy.isAfter(horarioSemanal.getFechaFin());
     }
+
+    public java.util.Map<String, String> getFeriados() { return feriados; }
+    public void setFeriados(java.util.Map<String, String> feriados) { this.feriados = feriados; }
 
     public Integer getColaboradoresAgregados() { return colaboradoresAgregados; }
     public void setColaboradoresAgregados(Integer colaboradoresAgregados) { this.colaboradoresAgregados = colaboradoresAgregados; }

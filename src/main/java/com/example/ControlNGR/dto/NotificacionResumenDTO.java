@@ -7,6 +7,7 @@ public class NotificacionResumenDTO {
     private long solicitudesRechazadas;    // mis solicitudes rechazadas recientemente
     private long eventosSinResponder;      // eventos activos sin responder
     private long alertasAsistencia;        // alertas de asistencia nuevas (jefaturas)
+    private boolean miRecordHabilitado;    // muestra "Mi asistencia" en el menu (panel habilitado y marca asistencia)
     private long totalNotificaciones;      // suma total
 
     public NotificacionResumenDTO() {}
@@ -15,6 +16,9 @@ public class NotificacionResumenDTO {
         this.totalNotificaciones = solicitudesPendientes + solicitudesAprobadas
                 + solicitudesRechazadas + eventosSinResponder + alertasAsistencia;
     }
+
+    public boolean isMiRecordHabilitado() { return miRecordHabilitado; }
+    public void setMiRecordHabilitado(boolean v) { this.miRecordHabilitado = v; }
 
     public long getAlertasAsistencia() { return alertasAsistencia; }
     public void setAlertasAsistencia(long v) { this.alertasAsistencia = v; }

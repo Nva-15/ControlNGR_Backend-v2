@@ -35,6 +35,9 @@ public class NotificacionService {
     @Autowired
     private AlertaAsistenciaService alertaAsistenciaService;
 
+    @Autowired
+    private ParametroService parametroService;
+
     @Transactional(readOnly = true)
     public NotificacionResumenDTO obtenerResumen(Empleado empleado) {
         NotificacionResumenDTO resumen = new NotificacionResumenDTO();
@@ -66,6 +69,11 @@ public class NotificacionService {
 
         // Alertas de asistencia nuevas de su equipo (solo jefaturas)
         resumen.setAlertasAsistencia(alertaAsistenciaService.contarNuevas(empleado.getUsuario()));
+
+        // "Mi asistencia" en el menu: el panel lo habilito y la persona marca asistencia
+        var tipo = empleado.getUsuario() != null ? empleado.getUsuario().getTipoUsuario() : null;
+        resumen.setMiRecordHabilitado(parametroService.booleano(ParametroService.MI_RECORD_HABILITADO, false)
+                && tipo != null && Boolean.TRUE.equals(tipo.getMarcaAsistencia()));
 
         resumen.calcularTotal();
         return resumen;

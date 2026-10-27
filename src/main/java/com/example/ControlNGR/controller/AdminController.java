@@ -30,11 +30,12 @@ public class AdminController {
     private final RedService redService;
     private final FuncionTurnoService funcionTurnoService;
     private final ResumenAsistenciaService resumenAsistenciaService;
+    private final AlertaAsistenciaService alertaAsistenciaService;
 
     public AdminController(AdminService adminService, ParametroService parametroService, SaldoService saldoService,
                            FeriadoLaboradoService feriadoLaboradoService, VacacionesService vacacionesService,
                            UsuarioActual usuarioActual, RedService redService, FuncionTurnoService funcionTurnoService,
-                           ResumenAsistenciaService resumenAsistenciaService) {
+                           ResumenAsistenciaService resumenAsistenciaService, AlertaAsistenciaService alertaAsistenciaService) {
         this.adminService = adminService;
         this.parametroService = parametroService;
         this.saldoService = saldoService;
@@ -44,6 +45,7 @@ public class AdminController {
         this.redService = redService;
         this.funcionTurnoService = funcionTurnoService;
         this.resumenAsistenciaService = resumenAsistenciaService;
+        this.alertaAsistenciaService = alertaAsistenciaService;
     }
 
     // ---------- Parametros ----------
@@ -215,6 +217,17 @@ public class AdminController {
         hilo.start();
         return ResponseEntity.accepted().body(Map.of("mensaje", "Recalculando el resumen de asistencia"
                 + (inicio == null ? " de todo el historial" : " desde " + inicio) + ". Puede tardar unos minutos."));
+    }
+
+    @GetMapping("/alertas-asistencia")
+    public ResponseEntity<?> alertasAsistencia() {
+        return ResponseEntity.ok(alertaAsistenciaService.configuracion());
+    }
+
+    /** Body: [{ tipo, activa, umbral, periodo: MES | SEMANA }, ...] */
+    @PutMapping("/alertas-asistencia")
+    public ResponseEntity<?> guardarAlertasAsistencia(@RequestBody List<AlertaAsistenciaService.Config> cambios) {
+        return ResponseEntity.ok(alertaAsistenciaService.guardar(cambios));
     }
 
     @GetMapping("/funciones-turno")

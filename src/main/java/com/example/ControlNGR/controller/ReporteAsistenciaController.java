@@ -1,5 +1,6 @@
 package com.example.ControlNGR.controller;
 
+import com.example.ControlNGR.service.AlertaAsistenciaService;
 import com.example.ControlNGR.service.ReporteAsistenciaService;
 import com.example.ControlNGR.service.ReporteAsistenciaService.Filtro;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -18,9 +19,23 @@ import java.util.Map;
 public class ReporteAsistenciaController {
 
     private final ReporteAsistenciaService servicio;
+    private final AlertaAsistenciaService alertas;
 
-    public ReporteAsistenciaController(ReporteAsistenciaService servicio) {
+    public ReporteAsistenciaController(ReporteAsistenciaService servicio, AlertaAsistenciaService alertas) {
         this.servicio = servicio;
+        this.alertas = alertas;
+    }
+
+    /** Alertas del período en curso (jefaturas, dentro de su alcance). */
+    @GetMapping("/alertas")
+    public ResponseEntity<Map<String, Object>> alertas(@RequestParam(value = "departamentoId", required = false) Integer departamentoId) {
+        return ResponseEntity.ok(alertas.listar(departamentoId));
+    }
+
+    @PostMapping("/alertas/vistas")
+    public ResponseEntity<Void> marcarVistas() {
+        alertas.marcarVistas();
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/dashboard")

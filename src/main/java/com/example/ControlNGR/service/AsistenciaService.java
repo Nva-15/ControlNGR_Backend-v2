@@ -168,7 +168,7 @@ public class AsistenciaService {
         if (!laboral || entrada == null) {
             throw new IllegalStateException("No tiene un turno laboral programado para hoy ("
                     + fecha.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                    + (tipoDia != null && !laboral ? ", día de " + tipoDia : "")
+                    + (tipoDia != null && !laboral ? ", día de " + tipoDia.replace('_', ' ') : "")
                     + "). No puede marcar asistencia.");
         }
         return entrada;

@@ -402,6 +402,9 @@ public class HorarioService {
         for (TurnoSemanaDTO.Dia dia : turnos.dias()) {
             String diaSemana = dia.clave().toLowerCase();
             validarDiaSemana(diaSemana);
+            if (TurnoSemanaDTO.DESCANSO_FERIADO.equals(dia.tipoDia())) {
+                throw new IllegalArgumentException("El horario base no lleva \"Descanso feriado\": se asigna en la semana del feriado");
+            }
             Horario horario = horarioRepository.findByEmpleadoAndDiaSemana(empleado, diaSemana).orElse(new Horario());
             horario.setEmpleado(empleado);
             horario.setDiaSemana(diaSemana);
@@ -439,6 +442,8 @@ public class HorarioService {
         if (Boolean.TRUE.equals(turnos.guardarComoBase())) {
             List<TurnoSemanaDTO.Dia> porDiaSemana = new ArrayList<>();
             for (TurnoSemanaDTO.Dia d : turnos.dias()) {
+                // El feriado es de esa fecha: el horario base de ese día no cambia
+                if (TurnoSemanaDTO.DESCANSO_FERIADO.equals(d.tipoDia())) continue;
                 String nombre = switch (LocalDate.parse(d.clave()).getDayOfWeek()) {
                     case MONDAY -> "lunes";
                     case TUESDAY -> "martes";
@@ -451,7 +456,7 @@ public class HorarioService {
                 porDiaSemana.add(new TurnoSemanaDTO.Dia(nombre, d.tipoDia(), d.turno(), d.horaEntrada(), d.horaSalida(),
                         d.horaAlmuerzoInicio(), d.horaAlmuerzoFin(), d.funciones()));
             }
-            guardarHorarioBase(empleadoId, new TurnoSemanaDTO(porDiaSemana, false));
+            if (!porDiaSemana.isEmpty()) guardarHorarioBase(empleadoId, new TurnoSemanaDTO(porDiaSemana, false));
             // El horario base completa los días pendientes; la semana ya tiene lo que se eligió
             return horarioSemanalService.obtenerPorId(semanaId);
         }

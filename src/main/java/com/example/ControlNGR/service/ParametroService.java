@@ -23,6 +23,8 @@ public class ParametroService {
     public static final String SALIDA_AUTOMATICA_HORAS = "SALIDA_AUTOMATICA_HORAS";
     public static final String JORNADA_MANANA_HORAS = "JORNADA_MANANA_HORAS";
     public static final String JORNADA_TARDE_HORAS = "JORNADA_TARDE_HORAS";
+    public static final String ENTRADA_MANANA_SUGERIDA = "ENTRADA_MANANA_SUGERIDA";
+    public static final String ENTRADA_TARDE_SUGERIDA = "ENTRADA_TARDE_SUGERIDA";
 
     private final ParametroSistemaRepository repository;
 
@@ -85,6 +87,11 @@ public class ParametroService {
                     throw new IllegalArgumentException("El valor debe ser true o false");
                 }
                 valor = valor.toLowerCase();
+            }
+            case "HORA" -> {
+                if (!valor.matches("([01]\\d|2[0-3]):[0-5]\\d")) {
+                    throw new IllegalArgumentException("La hora debe tener formato HH:MM (por ejemplo 08:30)");
+                }
             }
             case "FECHA" -> {
                 try {

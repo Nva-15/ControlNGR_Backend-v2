@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -38,6 +37,9 @@ public class HorarioService {
 
     @Autowired
     private ParametroService parametroService;
+
+    @Autowired
+    private FuncionTurnoService funcionTurnoService;
 
     /** Refrigerio por defecto del turno mañana: empieza estas horas después de la entrada y dura una hora. */
     private static final int REFRIGERIO_DESPUES_HORAS = 4;
@@ -374,60 +376,70 @@ public class HorarioService {
         return new HorarioResponseDTO(actualizado);
     }
 
-    /** Duraciones con las que la pantalla calcula la salida y el refrigerio (se pueden cambiar a mano). */
+    /** Duraciones y horas sugeridas con las que la pantalla arma los turnos (todo se puede cambiar a mano). */
     public Map<String, Object> configuracionTurnos() {
         return Map.of(
                 "jornadaMananaHoras", parametroService.decimal(ParametroService.JORNADA_MANANA_HORAS, java.math.BigDecimal.valueOf(9)),
                 "jornadaTardeHoras", parametroService.decimal(ParametroService.JORNADA_TARDE_HORAS, java.math.BigDecimal.valueOf(8)),
                 "refrigerioDespuesHoras", REFRIGERIO_DESPUES_HORAS,
-                "refrigerioMinutos", REFRIGERIO_MINUTOS);
+                "refrigerioMinutos", REFRIGERIO_MINUTOS,
+                "entradaMananaSugerida", parametroService.texto(ParametroService.ENTRADA_MANANA_SUGERIDA, "08:30"),
+                "entradaTardeSugerida", parametroService.texto(ParametroService.ENTRADA_TARDE_SUGERIDA, "17:00"),
+                "maxDescansos", TurnoSemanaDTO.MAX_DESCANSOS);
     }
 
     /**
-     * Guarda el horario base de la persona (lunes a domingo): los días laborales con el turno indicado y
-     * los demás como descanso. Completa sus días pendientes en las semanas ya creadas.
+     * Guarda el horario base de la persona (claves lunes ... domingo), cada día con su turno o de descanso.
+     * Completa sus días pendientes en las semanas ya creadas. Máximo un día de descanso.
      */
     @Transactional
-    public List<HorarioResponseDTO> guardarHorarioBase(Integer empleadoId, TurnoSemanaDTO turno) {
-        turno.validar();
+    public List<HorarioResponseDTO> guardarHorarioBase(Integer empleadoId, TurnoSemanaDTO turnos) {
+        turnos.validar();
         Empleado empleado = empleadoRepository.findById(empleadoId)
                 .orElseThrow(() -> new RuntimeException("Empleado no encontrado con ID: " + empleadoId));
         validarTieneHorario(empleado);
         List<HorarioResponseDTO> guardados = new ArrayList<>();
-        for (Map.Entry<String, String> dia : turno.dias().entrySet()) {
-            String diaSemana = dia.getKey().toLowerCase();
+        for (TurnoSemanaDTO.Dia dia : turnos.dias()) {
+            String diaSemana = dia.clave().toLowerCase();
             validarDiaSemana(diaSemana);
             Horario horario = horarioRepository.findByEmpleadoAndDiaSemana(empleado, diaSemana).orElse(new Horario());
             horario.setEmpleado(empleado);
             horario.setDiaSemana(diaSemana);
-            horario.setTipoDia(dia.getValue());
-            if (TurnoSemanaDTO.LABORAL.equals(dia.getValue())) {
-                horario.setTurno(turno.turnoNormalizado());
-                horario.setHoraEntrada(turno.horaEntrada());
-                horario.setHoraSalida(turno.horaSalida());
-                horario.setHoraAlmuerzoInicio(turno.almuerzoInicio());
-                horario.setHoraAlmuerzoFin(turno.almuerzoFin());
+            horario.setTipoDia(dia.tipoDia());
+            if (dia.esLaboral()) {
+                horario.setTurno(dia.turnoNormalizado());
+                horario.setHoraEntrada(dia.horaEntrada());
+                horario.setHoraSalida(dia.horaSalida());
+                horario.setHoraAlmuerzoInicio(dia.almuerzoInicio());
+                horario.setHoraAlmuerzoFin(dia.almuerzoFin());
+                horario.setFunciones(funcionTurnoService.normalizar(dia.funciones(), horario.getFunciones()));
             } else {
                 horario.setTurno(null);
                 horario.setHoraEntrada(null);
                 horario.setHoraSalida(null);
                 horario.setHoraAlmuerzoInicio(null);
                 horario.setHoraAlmuerzoFin(null);
+                horario.setFunciones(null);
             }
             guardados.add(new HorarioResponseDTO(horarioRepository.save(horario)));
+        }
+        long descansos = horarioRepository.findByEmpleadoId(empleadoId).stream()
+                .filter(h -> TurnoSemanaDTO.DESCANSO.equals(h.getTipoDia())).count();
+        if (descansos > TurnoSemanaDTO.MAX_DESCANSOS) {
+            throw new IllegalArgumentException(TurnoSemanaDTO.mensajeDescansos(empleado.getNombre(), descansos));
         }
         horarioSemanalService.completarDiasSinHorarioBase(empleadoId);
         return guardados;
     }
 
-    /** Arma la semana de la persona y, si se pide, guarda ese mismo turno como su horario base. */
+    /** Arma la semana de la persona y, si se pide, guarda esos mismos turnos como su horario base. */
     @Transactional
-    public HorarioSemanalResponseDTO guardarSemanaEmpleado(Integer semanaId, Integer empleadoId, TurnoSemanaDTO turno) {
-        HorarioSemanalResponseDTO semana = horarioSemanalService.actualizarSemanaEmpleado(semanaId, empleadoId, turno);
-        if (Boolean.TRUE.equals(turno.guardarComoBase())) {
-            Map<String, String> porDiaSemana = new LinkedHashMap<>();
-            for (Map.Entry<String, String> dia : turno.dias().entrySet()) {
-                String nombre = switch (LocalDate.parse(dia.getKey()).getDayOfWeek()) {
+    public HorarioSemanalResponseDTO guardarSemanaEmpleado(Integer semanaId, Integer empleadoId, TurnoSemanaDTO turnos) {
+        HorarioSemanalResponseDTO semana = horarioSemanalService.actualizarSemanaEmpleado(semanaId, empleadoId, turnos);
+        if (Boolean.TRUE.equals(turnos.guardarComoBase())) {
+            List<TurnoSemanaDTO.Dia> porDiaSemana = new ArrayList<>();
+            for (TurnoSemanaDTO.Dia d : turnos.dias()) {
+                String nombre = switch (LocalDate.parse(d.clave()).getDayOfWeek()) {
                     case MONDAY -> "lunes";
                     case TUESDAY -> "martes";
                     case WEDNESDAY -> "miercoles";
@@ -436,10 +448,10 @@ public class HorarioService {
                     case SATURDAY -> "sabado";
                     case SUNDAY -> "domingo";
                 };
-                porDiaSemana.put(nombre, dia.getValue());
+                porDiaSemana.add(new TurnoSemanaDTO.Dia(nombre, d.tipoDia(), d.turno(), d.horaEntrada(), d.horaSalida(),
+                        d.horaAlmuerzoInicio(), d.horaAlmuerzoFin(), d.funciones()));
             }
-            guardarHorarioBase(empleadoId, new TurnoSemanaDTO(turno.turno(), turno.horaEntrada(), turno.horaSalida(),
-                    turno.horaAlmuerzoInicio(), turno.horaAlmuerzoFin(), porDiaSemana, false));
+            guardarHorarioBase(empleadoId, new TurnoSemanaDTO(porDiaSemana, false));
             // El horario base completa los días pendientes; la semana ya tiene lo que se eligió
             return horarioSemanalService.obtenerPorId(semanaId);
         }

@@ -42,6 +42,9 @@ public class HorarioSemanalService {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
+    @Autowired
+    private FuncionTurnoService funcionTurnoService;
+
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     /** Día creado sin horario base (la persona aún no lo tenía): se completa al registrarlo. */
@@ -183,6 +186,7 @@ public class HorarioSemanalService {
                     nuevoDetalle.setHoraAlmuerzoFin(detalleOrigen.getHoraAlmuerzoFin());
                     nuevoDetalle.setTipoDia(detalleOrigen.getTipoDia());
                     nuevoDetalle.setTurno(detalleOrigen.getTurno());
+                    nuevoDetalle.setFunciones(detalleOrigen.getFunciones());
                     nuevoDetalle.setOrigenTipoDia("manual");
                 } else {
                     completarDesdeHorarioBase(nuevoDetalle);
@@ -497,6 +501,7 @@ public class HorarioSemanalService {
         logger.info("Actualizando {} detalles con los mismos datos", detalleIds.size());
 
         HorarioSemanal semana = null;
+        Set<Integer> empleados = new HashSet<>();
 
         for (Integer detalleId : detalleIds) {
             HorarioSemanalDetalle detalle = detalleRepository.findById(detalleId)
@@ -515,22 +520,24 @@ public class HorarioSemanalService {
             aplicarDatosADetalle(detalle, datos);
             detalle.setOrigenTipoDia("manual");
             detalleRepository.save(detalle);
+            empleados.add(detalle.getEmpleado().getId());
         }
 
         if (semana == null) {
             throw new RuntimeException("No se pudo actualizar ningún día");
         }
 
+        validarDescansos(semana, empleados);
         return construirResponseDTO(semana);
     }
 
     /**
-     * Arma la semana de una persona en un paso: los días laborales reciben el turno y los de descanso
-     * quedan libres. Los días asignados por una solicitud aprobada no se tocan.
+     * Arma la semana de una persona en un paso: cada día con su turno (o de descanso). Los días asignados por
+     * una solicitud aprobada no se tocan. La semana no puede quedar con más de un día de descanso.
      */
     @Transactional
-    public HorarioSemanalResponseDTO actualizarSemanaEmpleado(Integer semanaId, Integer empleadoId, TurnoSemanaDTO turno) {
-        turno.validar();
+    public HorarioSemanalResponseDTO actualizarSemanaEmpleado(Integer semanaId, Integer empleadoId, TurnoSemanaDTO turnos) {
+        turnos.validar();
         HorarioSemanal semana = horarioSemanalRepository.findById(semanaId)
                 .orElseThrow(() -> new RuntimeException("Horario semanal no encontrado"));
         Map<String, HorarioSemanalDetalle> porFecha = new HashMap<>();
@@ -538,39 +545,58 @@ public class HorarioSemanalService {
             porFecha.put(d.getFecha().toString(), d);
         }
         int actualizados = 0;
-        for (Map.Entry<String, String> dia : turno.dias().entrySet()) {
-            HorarioSemanalDetalle detalle = porFecha.get(dia.getKey());
+        for (TurnoSemanaDTO.Dia dia : turnos.dias()) {
+            HorarioSemanalDetalle detalle = porFecha.get(dia.clave());
             if (detalle == null) {
-                throw new IllegalArgumentException("El día " + dia.getKey() + " no pertenece a la semana de este colaborador");
+                throw new IllegalArgumentException("El día " + dia.clave() + " no pertenece a la semana de este colaborador");
             }
             if ("solicitud_aprobada".equals(detalle.getOrigenTipoDia())) {
                 continue;
             }
-            aplicarTurno(detalle, turno, dia.getValue());
+            aplicarTurno(detalle, dia);
             detalleRepository.save(detalle);
             actualizados++;
         }
         if (actualizados == 0) {
             throw new IllegalArgumentException("No hay días que se puedan modificar (los días por solicitud aprobada no se cambian)");
         }
+        validarDescansos(porFecha.values());
         return construirResponseDTO(semana);
     }
 
-    private static void aplicarTurno(HorarioSemanalDetalle detalle, TurnoSemanaDTO turno, String tipoDia) {
-        detalle.setTipoDia(tipoDia);
+    private void aplicarTurno(HorarioSemanalDetalle detalle, TurnoSemanaDTO.Dia dia) {
+        detalle.setTipoDia(dia.tipoDia());
         detalle.setOrigenTipoDia("manual");
-        if (TurnoSemanaDTO.LABORAL.equals(tipoDia)) {
-            detalle.setTurno(turno.turnoNormalizado());
-            detalle.setHoraEntrada(turno.horaEntrada());
-            detalle.setHoraSalida(turno.horaSalida());
-            detalle.setHoraAlmuerzoInicio(turno.almuerzoInicio());
-            detalle.setHoraAlmuerzoFin(turno.almuerzoFin());
+        if (dia.esLaboral()) {
+            detalle.setTurno(dia.turnoNormalizado());
+            detalle.setHoraEntrada(dia.horaEntrada());
+            detalle.setHoraSalida(dia.horaSalida());
+            detalle.setHoraAlmuerzoInicio(dia.almuerzoInicio());
+            detalle.setHoraAlmuerzoFin(dia.almuerzoFin());
+            detalle.setFunciones(funcionTurnoService.normalizar(dia.funciones(), detalle.getFunciones()));
         } else {
             detalle.setTurno(null);
             detalle.setHoraEntrada(null);
             detalle.setHoraSalida(null);
             detalle.setHoraAlmuerzoInicio(null);
             detalle.setHoraAlmuerzoFin(null);
+            detalle.setFunciones(null);
+        }
+    }
+
+    /** Una persona no puede tener más de un día de descanso en la semana (vacaciones, permisos... no cuentan). */
+    static void validarDescansos(Collection<HorarioSemanalDetalle> diasDeLaPersona) {
+        long descansos = diasDeLaPersona.stream().filter(d -> TurnoSemanaDTO.DESCANSO.equals(d.getTipoDia())).count();
+        if (descansos > TurnoSemanaDTO.MAX_DESCANSOS) {
+            String nombre = diasDeLaPersona.iterator().next().getEmpleado().getNombre();
+            throw new IllegalArgumentException(TurnoSemanaDTO.mensajeDescansos(nombre, descansos));
+        }
+    }
+
+    /** Tras editar días sueltos: revisa los descansos de cada persona afectada en su semana. */
+    private void validarDescansos(HorarioSemanal semana, Collection<Integer> empleadoIds) {
+        for (Integer empleadoId : new HashSet<>(empleadoIds)) {
+            validarDescansos(detalleRepository.findByHorarioSemanalIdAndEmpleadoId(semana.getId(), empleadoId));
         }
     }
 
@@ -597,6 +623,16 @@ public class HorarioSemanalService {
                 detalle.setHoraAlmuerzoInicio(null);
                 detalle.setHoraAlmuerzoFin(null);
             }
+        }
+        aplicarFunciones(detalle, datos.getFunciones());
+    }
+
+    /** Las funciones solo aplican a días laborales; si no se envían, se conservan. */
+    private void aplicarFunciones(HorarioSemanalDetalle detalle, List<String> funciones) {
+        if (!"normal".equals(detalle.getTipoDia())) {
+            detalle.setFunciones(null);
+        } else if (funciones != null) {
+            detalle.setFunciones(funcionTurnoService.normalizar(funciones, detalle.getFunciones()));
         }
     }
 
@@ -634,9 +670,11 @@ public class HorarioSemanalService {
                 detalle.setHoraAlmuerzoFin(null);
             }
         }
+        aplicarFunciones(detalle, request.getFunciones());
 
         detalle.setOrigenTipoDia("manual");
         detalleRepository.save(detalle);
+        validarDescansos(detalle.getHorarioSemanal(), List.of(detalle.getEmpleado().getId()));
         return construirResponseDTO(detalle.getHorarioSemanal());
     }
 

@@ -207,8 +207,8 @@ public class HorarioSemanalController {
     /**
      * Semana completa de un colaborador en un paso
      * PUT /api/horarios-semanales/{id}/empleado/{empleadoId}
-     * Body: { turno, horaEntrada, horaSalida, horaAlmuerzoInicio, horaAlmuerzoFin,
-     *         dias: { "2026-10-26": "normal" | "descanso", ... }, guardarComoBase }
+     * Body: { dias: [{ clave: "2026-10-26", tipoDia: "normal" | "descanso", turno, horaEntrada, horaSalida,
+     *         horaAlmuerzoInicio, horaAlmuerzoFin, funciones: ["SP", "PRE"] }, ...], guardarComoBase }
      */
     @PutMapping("/{id}/empleado/{empleadoId}")
     public ResponseEntity<?> guardarSemanaEmpleado(
@@ -244,6 +244,9 @@ public class HorarioSemanalController {
             datos.setHoraAlmuerzoFin((String) request.get("horaAlmuerzoFin"));
             datos.setTipoDia((String) request.get("tipoDia"));
             datos.setTurno((String) request.get("turno"));
+            if (request.get("funciones") instanceof List<?> funciones) {
+                datos.setFunciones(funciones.stream().map(String::valueOf).toList());
+            }
 
             HorarioSemanalResponseDTO response = horarioSemanalService.actualizarMultiplesDetalles(detalleIds, datos);
             return ResponseEntity.ok(response);

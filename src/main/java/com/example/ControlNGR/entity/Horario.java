@@ -36,6 +36,13 @@ public class Horario {
     @Column(name = "turno", length = 20)
     private String turno; // manana, tarde
 
+    /** Funciones del turno: códigos separados por coma (p. ej. "SP,PRE"). */
+    @Column(name = "funciones", length = 100)
+    private String funciones;
+
+    public String getFunciones() { return funciones; }
+    public void setFunciones(String funciones) { this.funciones = funciones; }
+
     // Constructores
     public Horario() {}
 

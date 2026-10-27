@@ -6,14 +6,18 @@ public class NotificacionResumenDTO {
     private long solicitudesAprobadas;     // mis solicitudes aprobadas recientemente
     private long solicitudesRechazadas;    // mis solicitudes rechazadas recientemente
     private long eventosSinResponder;      // eventos activos sin responder
+    private long alertasAsistencia;        // alertas de asistencia nuevas (jefaturas)
     private long totalNotificaciones;      // suma total
 
     public NotificacionResumenDTO() {}
 
     public void calcularTotal() {
         this.totalNotificaciones = solicitudesPendientes + solicitudesAprobadas
-                + solicitudesRechazadas + eventosSinResponder;
+                + solicitudesRechazadas + eventosSinResponder + alertasAsistencia;
     }
+
+    public long getAlertasAsistencia() { return alertasAsistencia; }
+    public void setAlertasAsistencia(long v) { this.alertasAsistencia = v; }
 
     public long getSolicitudesPendientes() { return solicitudesPendientes; }
     public void setSolicitudesPendientes(long v) { this.solicitudesPendientes = v; }

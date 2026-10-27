@@ -55,7 +55,7 @@ public class ReporteAsistenciaService {
     // ==================== ALCANCE ====================
 
     /** Departamento al que se limita quien consulta, o null si ve todos (dirección, gerencia y jefaturas). */
-    Integer departamentoForzado(Usuario u) {
+    public Integer departamentoForzado(Usuario u) {
         if (Roles.esGerencia(u.getRol())) return null;
         if (!Roles.esGestion(u.getRol())) throw new AccesoDenegadoException("Solo las jefaturas consultan el dashboard de asistencia");
         Empleado propio = u.getEmpleado();

@@ -32,6 +32,9 @@ public class NotificacionService {
     @Autowired
     private com.example.ControlNGR.repository.ReglaAprobacionRepository reglaAprobacionRepository;
 
+    @Autowired
+    private AlertaAsistenciaService alertaAsistenciaService;
+
     @Transactional(readOnly = true)
     public NotificacionResumenDTO obtenerResumen(Empleado empleado) {
         NotificacionResumenDTO resumen = new NotificacionResumenDTO();
@@ -60,6 +63,9 @@ public class NotificacionService {
                 .filter(e -> !respuestaEventoRepository.existsByEventoIdAndEmpleadoId(e.getId(), empleado.getId()))
                 .count();
         resumen.setEventosSinResponder(sinResponder);
+
+        // Alertas de asistencia nuevas de su equipo (solo jefaturas)
+        resumen.setAlertasAsistencia(alertaAsistenciaService.contarNuevas(empleado.getUsuario()));
 
         resumen.calcularTotal();
         return resumen;

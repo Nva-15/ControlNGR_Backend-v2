@@ -8,6 +8,7 @@ import com.example.ControlNGR.dto.HorarioRequestDTO;
 import com.example.ControlNGR.dto.HorarioResponseDTO;
 import com.example.ControlNGR.dto.HorarioSemanalDTO;
 import com.example.ControlNGR.dto.TurnoSemanaDTO;
+import com.example.ControlNGR.service.FuncionTurnoService;
 import com.example.ControlNGR.service.HorarioService;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,9 @@ public class HorarioController {
 
     @Autowired
     private HorarioService horarioService;
+
+    @Autowired
+    private FuncionTurnoService funcionTurnoService;
 
     @GetMapping
     public ResponseEntity<List<HorarioResponseDTO>> obtenerTodos() {
@@ -37,7 +41,13 @@ public class HorarioController {
         return ResponseEntity.ok(horarioService.configuracionTurnos());
     }
 
-    /** Horario base de lunes a domingo. Body: { turno, horaEntrada, horaSalida, horaAlmuerzoInicio, horaAlmuerzoFin, dias: { lunes: "normal" | "descanso", ... } } */
+    /** Catálogo de funciones de turno (LT, SP, PRE...), con las inactivas para mostrar las ya asignadas. */
+    @GetMapping("/funciones-turno")
+    public ResponseEntity<?> funcionesTurno() {
+        return ResponseEntity.ok(funcionTurnoService.listar());
+    }
+
+    /** Horario base. Body: { dias: [{ clave: "lunes", tipoDia: "normal" | "descanso", turno, horaEntrada, horaSalida, horaAlmuerzoInicio, horaAlmuerzoFin, funciones: ["SP"] }, ...] } */
     @PutMapping("/empleado/{empleadoId}/base")
     public ResponseEntity<?> guardarHorarioBase(@PathVariable("empleadoId") Integer empleadoId,
                                                 @RequestBody TurnoSemanaDTO turno) {

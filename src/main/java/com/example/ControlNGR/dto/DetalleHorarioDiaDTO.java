@@ -19,6 +19,8 @@ public class DetalleHorarioDiaDTO {
     private String horaAlmuerzoFin;
     private String tipoDia;
     private String turno;
+    /** Funciones del turno (códigos: SP, PRE...). Al editar, null = no cambiar. */
+    private java.util.List<String> funciones;
     private String origenTipoDia;
     private Integer solicitudId;
     private boolean esHoy;
@@ -38,6 +40,7 @@ public class DetalleHorarioDiaDTO {
         this.horaAlmuerzoFin = formatTime(detalle.getHoraAlmuerzoFin());
         this.tipoDia = detalle.getTipoDia();
         this.turno = detalle.getTurno();
+        this.funciones = com.example.ControlNGR.service.FuncionTurnoService.aLista(detalle.getFunciones());
         this.origenTipoDia = detalle.getOrigenTipoDia();
         this.solicitudId = detalle.getSolicitudRef() != null ? detalle.getSolicitudRef().getId() : null;
         this.esHoy = LocalDate.now().equals(detalle.getFecha());
@@ -48,6 +51,9 @@ public class DetalleHorarioDiaDTO {
     }
 
     // Getters y Setters
+    public java.util.List<String> getFunciones() { return funciones; }
+    public void setFunciones(java.util.List<String> funciones) { this.funciones = funciones; }
+
     public Integer getId() {
         return id;
     }

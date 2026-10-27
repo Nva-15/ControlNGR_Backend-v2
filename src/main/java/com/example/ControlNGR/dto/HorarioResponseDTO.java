@@ -16,6 +16,7 @@ public class HorarioResponseDTO {
     private String horaAlmuerzoFin;
     private String tipoDia;
     private String turno;
+    private java.util.List<String> funciones;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
@@ -33,6 +34,7 @@ public class HorarioResponseDTO {
         this.horaAlmuerzoFin = formatTime(horario.getHoraAlmuerzoFin());
         this.tipoDia = horario.getTipoDia() != null ? horario.getTipoDia() : "normal";
         this.turno = horario.getTurno() != null ? horario.getTurno() : "manana";
+        this.funciones = com.example.ControlNGR.service.FuncionTurnoService.aLista(horario.getFunciones());
     }
 
     private String formatTime(LocalTime time) {
@@ -72,4 +74,6 @@ public class HorarioResponseDTO {
 
     public String getTurno() { return turno; }
     public void setTurno(String turno) { this.turno = turno; }
+    public java.util.List<String> getFunciones() { return funciones; }
+    public void setFunciones(java.util.List<String> funciones) { this.funciones = funciones; }
 }

@@ -46,6 +46,10 @@ public class HorarioSemanalDetalle {
     @Column(name = "turno", length = 20)
     private String turno; // manana, tarde
 
+    /** Funciones del turno: códigos separados por coma (p. ej. "SP,PRE"). */
+    @Column(name = "funciones", length = 100)
+    private String funciones;
+
     @Column(name = "origen_tipo_dia", length = 30)
     private String origenTipoDia; // manual, solicitud_aprobada
 
@@ -97,6 +101,7 @@ public class HorarioSemanalDetalle {
             this.horaAlmuerzoFin = horarioBase.getHoraAlmuerzoFin();
             this.tipoDia = horarioBase.getTipoDia() != null ? horarioBase.getTipoDia() : "normal";
             this.turno = horarioBase.getTurno();
+            this.funciones = horarioBase.getFunciones();
             this.origenTipoDia = "manual";
         }
     }
@@ -115,6 +120,7 @@ public class HorarioSemanalDetalle {
         this.horaAlmuerzoInicio = null;
         this.horaAlmuerzoFin = null;
         this.turno = null;
+        this.funciones = null;
     }
 
     // Revertir a estado normal (cuando se rechaza una solicitud)
@@ -205,6 +211,9 @@ public class HorarioSemanalDetalle {
     public void setTipoDia(String tipoDia) {
         this.tipoDia = tipoDia;
     }
+
+    public String getFunciones() { return funciones; }
+    public void setFunciones(String funciones) { this.funciones = funciones; }
 
     public String getTurno() {
         return turno;

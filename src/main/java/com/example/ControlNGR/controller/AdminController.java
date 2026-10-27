@@ -28,10 +28,11 @@ public class AdminController {
     private final VacacionesService vacacionesService;
     private final UsuarioActual usuarioActual;
     private final RedService redService;
+    private final FuncionTurnoService funcionTurnoService;
 
     public AdminController(AdminService adminService, ParametroService parametroService, SaldoService saldoService,
                            FeriadoLaboradoService feriadoLaboradoService, VacacionesService vacacionesService,
-                           UsuarioActual usuarioActual, RedService redService) {
+                           UsuarioActual usuarioActual, RedService redService, FuncionTurnoService funcionTurnoService) {
         this.adminService = adminService;
         this.parametroService = parametroService;
         this.saldoService = saldoService;
@@ -39,6 +40,7 @@ public class AdminController {
         this.vacacionesService = vacacionesService;
         this.usuarioActual = usuarioActual;
         this.redService = redService;
+        this.funcionTurnoService = funcionTurnoService;
     }
 
     // ---------- Parametros ----------
@@ -193,6 +195,21 @@ public class AdminController {
     @PutMapping("/motivos-licencia/{id}")
     public ResponseEntity<?> actualizarMotivo(@PathVariable("id") Integer id, @RequestBody Map<String, Object> body) {
         return ResponseEntity.ok(adminService.guardarMotivoLicencia(id, body));
+    }
+
+    @GetMapping("/funciones-turno")
+    public ResponseEntity<?> funcionesTurno() {
+        return ResponseEntity.ok(funcionTurnoService.listar());
+    }
+
+    @PostMapping("/funciones-turno")
+    public ResponseEntity<?> crearFuncionTurno(@RequestBody Map<String, Object> body) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(funcionTurnoService.guardar(null, body));
+    }
+
+    @PutMapping("/funciones-turno/{id}")
+    public ResponseEntity<?> actualizarFuncionTurno(@PathVariable("id") Integer id, @RequestBody Map<String, Object> body) {
+        return ResponseEntity.ok(funcionTurnoService.guardar(id, body));
     }
 
     // ---------- Usuarios ----------

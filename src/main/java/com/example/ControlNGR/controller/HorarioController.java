@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import com.example.ControlNGR.dto.HorarioRequestDTO;
 import com.example.ControlNGR.dto.HorarioResponseDTO;
 import com.example.ControlNGR.dto.HorarioSemanalDTO;
+import com.example.ControlNGR.dto.TurnoSemanaDTO;
 import com.example.ControlNGR.service.HorarioService;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,23 @@ public class HorarioController {
     public ResponseEntity<List<HorarioSemanalDTO>> obtenerVistaConsolidada(
             @RequestParam(value = "rol", required = false) String rol) {
         return ResponseEntity.ok(horarioService.obtenerVistaConsolidada(rol));
+    }
+
+    /** Duración de la jornada por turno y refrigerio por defecto (para calcular la salida al armar horarios). */
+    @GetMapping("/configuracion-turnos")
+    public ResponseEntity<Map<String, Object>> configuracionTurnos() {
+        return ResponseEntity.ok(horarioService.configuracionTurnos());
+    }
+
+    /** Horario base de lunes a domingo. Body: { turno, horaEntrada, horaSalida, horaAlmuerzoInicio, horaAlmuerzoFin, dias: { lunes: "normal" | "descanso", ... } } */
+    @PutMapping("/empleado/{empleadoId}/base")
+    public ResponseEntity<?> guardarHorarioBase(@PathVariable("empleadoId") Integer empleadoId,
+                                                @RequestBody TurnoSemanaDTO turno) {
+        try {
+            return ResponseEntity.ok(horarioService.guardarHorarioBase(empleadoId, turno));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping("/{id}")

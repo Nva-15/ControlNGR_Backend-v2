@@ -524,6 +524,56 @@ public class HorarioSemanalService {
         return construirResponseDTO(semana);
     }
 
+    /**
+     * Arma la semana de una persona en un paso: los días laborales reciben el turno y los de descanso
+     * quedan libres. Los días asignados por una solicitud aprobada no se tocan.
+     */
+    @Transactional
+    public HorarioSemanalResponseDTO actualizarSemanaEmpleado(Integer semanaId, Integer empleadoId, TurnoSemanaDTO turno) {
+        turno.validar();
+        HorarioSemanal semana = horarioSemanalRepository.findById(semanaId)
+                .orElseThrow(() -> new RuntimeException("Horario semanal no encontrado"));
+        Map<String, HorarioSemanalDetalle> porFecha = new HashMap<>();
+        for (HorarioSemanalDetalle d : detalleRepository.findByHorarioSemanalIdAndEmpleadoId(semanaId, empleadoId)) {
+            porFecha.put(d.getFecha().toString(), d);
+        }
+        int actualizados = 0;
+        for (Map.Entry<String, String> dia : turno.dias().entrySet()) {
+            HorarioSemanalDetalle detalle = porFecha.get(dia.getKey());
+            if (detalle == null) {
+                throw new IllegalArgumentException("El día " + dia.getKey() + " no pertenece a la semana de este colaborador");
+            }
+            if ("solicitud_aprobada".equals(detalle.getOrigenTipoDia())) {
+                continue;
+            }
+            aplicarTurno(detalle, turno, dia.getValue());
+            detalleRepository.save(detalle);
+            actualizados++;
+        }
+        if (actualizados == 0) {
+            throw new IllegalArgumentException("No hay días que se puedan modificar (los días por solicitud aprobada no se cambian)");
+        }
+        return construirResponseDTO(semana);
+    }
+
+    private static void aplicarTurno(HorarioSemanalDetalle detalle, TurnoSemanaDTO turno, String tipoDia) {
+        detalle.setTipoDia(tipoDia);
+        detalle.setOrigenTipoDia("manual");
+        if (TurnoSemanaDTO.LABORAL.equals(tipoDia)) {
+            detalle.setTurno(turno.turnoNormalizado());
+            detalle.setHoraEntrada(turno.horaEntrada());
+            detalle.setHoraSalida(turno.horaSalida());
+            detalle.setHoraAlmuerzoInicio(turno.almuerzoInicio());
+            detalle.setHoraAlmuerzoFin(turno.almuerzoFin());
+        } else {
+            detalle.setTurno(null);
+            detalle.setHoraEntrada(null);
+            detalle.setHoraSalida(null);
+            detalle.setHoraAlmuerzoInicio(null);
+            detalle.setHoraAlmuerzoFin(null);
+        }
+    }
+
     private void aplicarDatosADetalle(HorarioSemanalDetalle detalle, DetalleHorarioDiaDTO datos) {
         if (datos.getHoraEntrada() != null) {
             detalle.setHoraEntrada(parseTime(datos.getHoraEntrada()));

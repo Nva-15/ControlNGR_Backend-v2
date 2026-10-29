@@ -143,8 +143,11 @@ schtasks /create /s SERVIDOR /tn "Control NGR - Acceso remoto" /ru "DOMINIO\usua
 schtasks /run /s SERVIDOR /tn "Control NGR - Acceso remoto"
 Get-Content \\SERVIDOR\d\Control_NGR\ControlNGR_Backend-v2\scripts\wsl\4-acceso-remoto.log   # a los 2-3 minutos
 
-# 4. Arranque al encender (tarea nueva: no detiene la que ya está corriendo)
-schtasks /create /s SERVIDOR /tn "Control NGR - WSL al encender" /ru "DOMINIO\usuario" /rp * /sc onstart /f /tr "powershell.exe -NoProfile -WindowStyle Hidden -Command wsl.exe -d Ubuntu-24.04 --exec sleep infinity"
+# 4. Arranque al encender: espera 1 minuto y reintenta si WSL aún no está listo (sin reintento, al arrancar
+#    falla con resultado 1 y Ubuntu queda apagado). Equivale a: .\scripts\remoto\planta.ps1 -RepararArranque
+$cmd = 'for(;;){wsl -d Ubuntu-24.04 -e sleep infinity *>> C:\ngr-wsl.log;sleep 20}'
+$enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cmd))
+schtasks /create /s SERVIDOR /tn "Control NGR - WSL al encender" /ru "DOMINIO\usuario" /rp * /sc onstart /delay 0001:00 /rl HIGHEST /f /tr "powershell -NoP -W Hidden -Enc $enc"
 
 # 5. Limpiar la tarea de un solo uso
 schtasks /delete /s SERVIDOR /tn "Control NGR - Acceso remoto" /f
@@ -165,9 +168,12 @@ powershell -ExecutionPolicy Bypass -File .\scripts\remoto\planta.ps1 -CrearAcces
 | **Control NGR - Actualizar planta** (o `planta.ps1`) | `git pull` del frontend y del backend en el servidor y `iniciar.sh --construir`. Pide confirmar porque el sistema deja de responder 1 a 2 minutos |
 | **Control NGR - Consola planta** (`-Conectar`) | Abre la consola de Ubuntu del servidor en la carpeta del sistema |
 | **Control NGR - Estado planta** (`-Estado`) | `docker compose ps` y las últimas líneas del backend |
+| **Control NGR - Levantar planta** (`-Levantar`) | Si el sistema no responde (por ejemplo, tras un reinicio): enciende Ubuntu con la tarea de arranque, espera el SSH, levanta los contenedores y espera la web. Si la tarea falta o falla, la vuelve a crear (pide la contraseña de Windows del servidor) |
+| `-RepararArranque` | Vuelve a crear la tarea **Control NGR - WSL al encender** (al encender, sin iniciar sesión, espera 1 minuto y reintenta cada 20 s si WSL falla; los errores quedan en `C:\ngr-wsl.log` del servidor). Úselo si cambió la contraseña de Windows del servidor |
 
 - La primera vez crea en su PC la clave `%USERPROFILE%\.ssh\controlngr_ed25519`, la instala en el servidor y pide **una sola vez** la contraseña de Ubuntu. Después se conecta sin contraseña. Esa clave da acceso al servidor: no la copie ni la suba a git.
 - Otro servidor o usuario: `-Servidor 10.x.x.x -Usuario otro`.
+- `-Levantar` y `-RepararArranque` manejan las tareas del servidor con `schtasks /s`: su usuario de Windows debe ser administrador del servidor. Si no lo es, agregue `-CuentaRemota DOMINIO\usuario` (pide esa contraseña una vez). La cuenta que ejecuta Ubuntu es `-UsuarioWindows` (por defecto `Administrador`).
 - Quitar el acceso de una PC: en el servidor, borre su línea (termina en `controlngr-NOMBRE_PC`) de `~/.ssh/authorized_keys`.
 
 ## Uso diario (en Ubuntu)
